@@ -1,5 +1,5 @@
 use crate::network::node::{GroupId, TypeConfig};
-use crate::store::raft_engine::{MessageExtTyped};
+use crate::store::raft_engine::MessageExtTyped;
 use lru::LruCache;
 use meta::StoreMeta;
 use openraft::OptionalSend;
@@ -24,86 +24,26 @@ use std::time::Instant;
 use tokio::sync::{Mutex, MutexGuard};
 use tracing::Instrument;
 
-const MEM_LOG_SIZE: usize = 2000;
 #[derive(Clone)]
-pub struct RocksLogStore {
-    cache: Arc<Mutex<LruCache<u64, EntryOf<TypeConfig>>>>,
+pub struct LogStore {
     _p: PhantomData<TypeConfig>,
     engine: Arc<Engine>,
     group_id: GroupId,
 }
-impl Debug for RocksLogStore {
+impl Debug for LogStore {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("RocksLogStore")
-            .field("cache", &self.cache)
-            .finish()
+        f.debug_struct("RocksLogStore").finish()
     }
 }
 
-impl RocksLogStore {
+impl LogStore {
     pub fn new(group_id: GroupId, engine: Arc<Engine>) -> Self {
         // 明确指定类型
-        let cache: LruCache<u64, EntryOf<TypeConfig>> =
-            LruCache::new(NonZeroUsize::new(MEM_LOG_SIZE).expect("MEM_LOG_SIZE must be > 0"));
         Self {
-            cache: Arc::new(Mutex::new(cache)),
             _p: Default::default(),
             engine,
             group_id,
         }
-    }
-
-    /// Try to satisfy the given range from cache.
-    ///
-    /// Returns Some(vec) if fully hit in cache; None if any element missing or end unbounded.
-    async fn try_get_from_cache<RB: RangeBounds<u64> + Clone + Debug>(
-        &self,
-        range: RB,
-    ) -> Option<Vec<EntryOf<TypeConfig>>> {
-        // compute start index
-        use std::ops::Bound;
-        let start: u64 = match range.start_bound() {
-            Bound::Included(x) => *x,
-            Bound::Excluded(x) => x.saturating_add(1),
-            Bound::Unbounded => 0,
-        };
-        // compute end index; if unbounded -> cannot satisfy from cache reliably
-        let end_opt: Option<u64> = match range.end_bound() {
-            Bound::Included(x) => Some(*x),
-            Bound::Excluded(x) => {
-                if *x == 0 {
-                    return Some(Vec::new()); // empty range
-                } else {
-                    Some(x.saturating_sub(1))
-                }
-            }
-            Bound::Unbounded => None,
-        };
-
-        let end = match end_opt {
-            None => return None, // unbounded end -> fall back to rocksdb
-            Some(e) => e,
-        };
-
-        if start > end {
-            return Some(Vec::new()); // empty range
-        }
-
-        // quick check: if requested length is larger than cache capacity -> miss
-        let len_needed = end.saturating_sub(start).saturating_add(1);
-        if len_needed as usize > MEM_LOG_SIZE {
-            return None;
-        }
-
-        let mut out = Vec::with_capacity(len_needed as usize);
-        let mut cache: MutexGuard<LruCache<u64, Entry<TypeConfig>>> = self.cache.lock().await;
-        for idx in start..=end {
-            match cache.get(&idx) {
-                Some(ent) => out.push(ent.clone()),
-                None => return None,
-            }
-        }
-        Some(out)
     }
 
     /// Get a store metadata.
@@ -138,7 +78,7 @@ impl RocksLogStore {
     }
 }
 
-impl RaftLogReader<TypeConfig> for RocksLogStore {
+impl RaftLogReader<TypeConfig> for LogStore {
     async fn try_get_log_entries<RB: RangeBounds<u64> + Clone + Debug + OptionalSend>(
         &mut self,
         range: RB,
@@ -179,7 +119,7 @@ impl RaftLogReader<TypeConfig> for RocksLogStore {
     }
 }
 
-impl RaftLogStorage<TypeConfig> for RocksLogStore {
+impl RaftLogStorage<TypeConfig> for LogStore {
     type LogReader = Self;
 
     //不会在每次提交条目时被调用，但重启等场景会调用

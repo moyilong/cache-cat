@@ -1,11 +1,12 @@
 use crate::network::model::{Request, Response};
 use crate::network::network::NetworkFactory;
-use crate::network::node::{App, CacheCatApp, NodeId, StateMachineStore, create_node};
+use crate::network::node::{App, CacheCatApp, NodeId, create_node};
 use crate::server::core::config::{ONE, THREE, TWO};
 use crate::server::handler::model::SetReq;
 use crate::server::handler::rpc;
+use crate::store::log_store::LogStore;
 use crate::store::raft_engine::create_raft_engine;
-use crate::store::log_store::RocksLogStore;
+use crate::store::store::StateMachineStore;
 use openraft::{BasicNode, Config};
 use std::collections::BTreeMap;
 use std::path::Path;
@@ -27,7 +28,7 @@ where
     // let rocksdb_path = dir.as_ref().join("rocksdb");
     let engine = create_raft_engine(raft_engine.clone());
     // let db: Arc<DB> = new_storage(rocksdb_path).await;
-    let log_store = RocksLogStore::new(0, engine.clone());
+    let log_store = LogStore::new(0, engine.clone());
     let sm_store = StateMachineStore::new(path, 0).await?;
     let network = NetworkFactory {};
 

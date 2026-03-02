@@ -2,13 +2,14 @@ use crate::network::model::{Request, Response};
 use crate::network::router::{MultiNetworkFactory, Router};
 use crate::server::core::config::GROUP_NUM;
 use crate::store::raft_engine::create_raft_engine;
-use crate::store::log_store::RocksLogStore;
+use crate::store::log_store::LogStore;
 use openraft::Config;
 use openraft::SnapshotPolicy::LogsSinceLast;
 use std::collections::HashMap;
 use std::io::Cursor;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
+use crate::store::store::StateMachineStore;
 
 openraft::declare_raft_types!(
     /// Declare the type configuration for example K/V store.
@@ -23,8 +24,6 @@ pub type GroupId = u16;
 pub type NodeId = u16;
 
 //实现是纯内存的暂时
-pub type LogStore = crate::store::log_store::RocksLogStore;
-pub type StateMachineStore = crate::store::store::StateMachineStore;
 pub type Raft = openraft::Raft<TypeConfig>;
 
 pub struct CacheCatApp {
@@ -110,7 +109,7 @@ where
         // let engine = create_raft_engine(path);
         let router = Router::new(addr.to_string());
         let network = MultiNetworkFactory::new(router, group_id);
-        let log_store = RocksLogStore::new(group_id, engine.clone());
+        let log_store = LogStore::new(group_id, engine.clone());
         let sm_store = StateMachineStore::new(path.clone(), group_id)
             .await
             .unwrap();
