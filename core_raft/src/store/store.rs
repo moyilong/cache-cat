@@ -12,6 +12,7 @@ use openraft::{EntryPayload, LogId, SnapshotMeta};
 use openraft::{OptionalSend, Snapshot, StoredMembership};
 use openraft::{RaftSnapshotBuilder, RaftTypeConfig};
 
+use crate::server::client::file_client::FileOperator;
 use serde::Deserialize;
 use serde::Serialize;
 use std::collections::HashMap;
@@ -82,13 +83,21 @@ impl RaftSnapshotBuilder<TypeConfig> for StateMachineStore {
             last_membership,
             snapshot_id,
         };
-
         let cache = self.data.kvs.clone();
-
         dump_cache_to_path(cache, meta.clone(), &self.path, self.group_id).await?;
+        //创建快照的硬链接
+        //理论上这里读取的快照可能不是这里dump的快照了，因此这里返回的metadata需要重新load
+        let file = FileOperator::new(self.group_id, &self.path).await?;
+        //正常情况不该为空如果为空就抛IO异常
+        let file_operator =
+            file.ok_or(io::Error::new(io::ErrorKind::Other, "snapshot is empty"))?;
+        let meta_data = file_operator
+            .load_meta_data()
+            .await?
+            .ok_or(io::Error::new(io::ErrorKind::Other, "meta data is empty"))?;
         Ok(Snapshot {
-            meta,
-            snapshot: Cursor::new(Vec::new()),
+            meta: meta_data,
+            snapshot: file_operator,
         })
     }
 }
@@ -96,7 +105,7 @@ impl RaftSnapshotBuilder<TypeConfig> for StateMachineStore {
 impl StateMachineStore {
     pub async fn new(path: PathBuf, group_id: GroupId) -> Result<StateMachineStore, io::Error> {
         let cache = MyCache::new();
-        let mut sm = Self {
+        let sm = Self {
             data: StateMachineData {
                 last_applied_log_id: None,
                 last_membership: Default::default(),
@@ -177,8 +186,9 @@ impl RaftStateMachine<TypeConfig> for StateMachineStore {
         self.clone()
     }
 
-    async fn begin_receiving_snapshot(&mut self) -> Result<Cursor<Vec<u8>>, io::Error> {
-        Ok(Cursor::new(Vec::new()))
+    //这个方法必须要实现，但是从来不会被调用
+    async fn begin_receiving_snapshot(&mut self) -> Result<FileOperator, io::Error> {
+        Ok(Default::default())
     }
 
     // Raft协议强制快照文件先持久化到磁盘，然后再应用到状态机。不能实现类似Redis的直接应用到状态机。
@@ -187,19 +197,25 @@ impl RaftStateMachine<TypeConfig> for StateMachineStore {
         meta: &SnapshotMeta<TypeConfig>,
         snapshot: <TypeConfig as RaftTypeConfig>::SnapshotData,
     ) -> Result<(), io::Error> {
-        load_cache_from_path(self.data.kvs.clone(), &self.path).await?;
+        let path_buf = snapshot.get_local_hard_link_buf(&self.path);
+        load_cache_from_path(self.data.kvs.clone(), &path_buf).await?;
         Ok(())
     }
 
     async fn get_current_snapshot(&mut self) -> Result<Option<Snapshot<TypeConfig>>, io::Error> {
-        //理论上这里的load是多余的，因为发送的时候还会从磁盘上读取一次，会和读取的不一样
-        let path = load_meta_from_path(&self.path).await?;
-        match path {
+        let option = FileOperator::new(self.group_id, &self.path).await?;
+        match option {
             None => Ok(None),
-            Some(data) => Ok(Some(Snapshot {
-                meta: data,
-                snapshot: Cursor::new(Vec::new()),
-            })),
+            Some(res) => {
+                let meta = res
+                    .load_meta_data()
+                    .await?
+                    .ok_or(io::Error::new(io::ErrorKind::Other, "meta data is empty"))?;
+                Ok(Some(Snapshot {
+                    meta,
+                    snapshot: res,
+                }))
+            }
         }
     }
 }

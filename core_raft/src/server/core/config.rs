@@ -18,7 +18,7 @@ pub const TCP_CONNECT_NUM: u32 = 3;
 
 pub const SNAPSHOT_FILE_NAME: &str = "snapshot";
 pub fn get_snapshot_file_name(group_id: GroupId) -> String {
-    format!("{}_{}.snapshot", SNAPSHOT_FILE_NAME, group_id)
+    format!("{}_{}.bin", SNAPSHOT_FILE_NAME, group_id)
 }
 
 #[derive(Debug, Deserialize, Serialize)]

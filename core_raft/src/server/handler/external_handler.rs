@@ -129,7 +129,7 @@ async fn install_full_snapshot(
 ) -> SnapshotResponse<TypeConfig> {
     let snapshot = Snapshot {
         meta: req.snapshot_meta,
-        snapshot: Cursor::new(req.snapshot),
+        snapshot: req.snapshot,
     };
     get_app(&app, req.group_id)
         .raft

@@ -10,6 +10,7 @@ use std::collections::HashMap;
 use std::io::Cursor;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
+use crate::server::client::file_client::FileOperator;
 
 openraft::declare_raft_types!(
     /// Declare the type configuration for example K/V store.
@@ -17,7 +18,7 @@ openraft::declare_raft_types!(
         D = Request,
         R = Response,
         Entry = openraft::Entry<TypeConfig>,
-        SnapshotData = Cursor<Vec<u8>>,
+        SnapshotData = FileOperator,
         NodeId=u16,
 );
 pub type GroupId = u16;

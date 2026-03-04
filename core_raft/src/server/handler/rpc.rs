@@ -126,10 +126,11 @@ async fn run_stream_mode(
 
     // 确保目录存在
     fs::create_dir_all(&snapshot_dir).await?;
-
-    let uuid = Uuid::new_v4();
+    let mut buf = [0u8; 16];
+    socket.read_exact(&mut buf).await?;
+    let uuid = Uuid::from_bytes(buf);
     // 临时文件名
-    let temp_filename = format!("snapshot_from_master_{}_{}.tmp", uuid, group_id);
+    let temp_filename = format!("hardlink_snapshot_{}_{}.tmp", uuid, group_id);
     let final_filename = get_snapshot_file_name(group_id as GroupId);
 
     let temp_path = snapshot_dir.join(&temp_filename);
@@ -159,7 +160,6 @@ async fn run_stream_mode(
         peer_addr,
         final_path.to_string_lossy()
     );
-    println!("{}", uuid.as_bytes().len());
     //将生成的uuid返回给调用方
     socket.write_all(uuid.as_bytes()).await?;
     Ok(())

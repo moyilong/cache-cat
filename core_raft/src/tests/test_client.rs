@@ -12,7 +12,7 @@ async fn test_add() {
         .await
         .expect("connect failed");
 
-    const ITERATIONS: u32 = 100;
+    const ITERATIONS: u32 = 200;
 
     // ========================
     // 1️⃣ 测写延迟

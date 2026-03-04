@@ -1,4 +1,5 @@
 use crate::network::node::{GroupId, TypeConfig};
+use crate::server::client::file_client::FileOperator;
 use openraft::alias::VoteOf;
 use openraft::raft::{AppendEntriesRequest, VoteRequest};
 use openraft::{Snapshot, SnapshotMeta};
@@ -89,6 +90,6 @@ pub struct VoteReq {
 pub struct InstallFullSnapshotReq {
     pub vote: VoteOf<TypeConfig>,
     pub snapshot_meta: SnapshotMeta<TypeConfig>,
-    pub snapshot: Vec<u8>,
+    pub snapshot: FileOperator,
     pub group_id: GroupId,
 }

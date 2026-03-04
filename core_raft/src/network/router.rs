@@ -2,7 +2,6 @@ use crate::network::node::{GroupId, NodeId, TypeConfig};
 use crate::server::client::client::{RpcClient, RpcMultiClient};
 use crate::server::handler::model::{AppendEntriesReq, InstallFullSnapshotReq, VoteReq};
 
-use crate::server::client::file_client::send_file_via_hardlink;
 use openraft::alias::VoteOf;
 use openraft::error::{RPCError, ReplicationClosed, StreamingError, Unreachable};
 use openraft::network::RPCOption;
@@ -159,20 +158,12 @@ impl GroupRouter<TypeConfig, GroupId> for Router {
         cancel: impl Future<Output = ReplicationClosed> + OptionalSend + 'static,
         option: RPCOption,
     ) -> Result<SnapshotResponse<TypeConfig>, StreamingError<TypeConfig>> {
-        let file_path = self
-            .path
-            .join("snapshot")
-            .join(format!("snapshot_{}.bin", group_id));
-        //先发送整个快照
-        let result = send_file_via_hardlink(&self.addr, group_id, file_path)
-            .await.unwrap();
-
         //在这里发送快照的信息
-        let data = snapshot.snapshot.into_inner();
+        let data = snapshot.snapshot.send_file(&self.addr).await.unwrap();
         let req = InstallFullSnapshotReq {
             vote,
             snapshot_meta: snapshot.meta,
-            snapshot: data,
+            snapshot: snapshot.snapshot,
             group_id,
         };
         self.nodes.get(&target).unwrap().call(8, req).await.unwrap()
