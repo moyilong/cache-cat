@@ -3,24 +3,30 @@ use std::error::Error;
 use std::path::Path;
 use tokio::fs;
 use tokio::fs::File;
-use tokio::io::{self, AsyncWriteExt};
+use tokio::io::{self, AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpStream;
+use uuid::Uuid;
+use crate::network::node::GroupId;
 
 /// 创建硬链接，调用send_file_once发送文件，然后删除硬链接
 /// 只要产生了快照，那么之后就一定会存在快照文件，这个快照文件不会被删除
 pub async fn send_file_via_hardlink<P: AsRef<Path>>(
     addr: &str,
-    group_id: u32,
+    group_id: GroupId,
     file_path: P,
-) -> Result<bool, Box<dyn Error + Send + Sync>> {
+) -> Result<Option<Uuid>, Box<dyn Error + Send + Sync>> {
     let file_path = file_path.as_ref();
     // 检查文件是否存在
     if !fs::metadata(file_path).await.is_ok() {
-        return Ok(false);
+        return Ok(None);
     }
 
     // 创建唯一的硬链接文件名
-    let hardlink_path = file_path.with_extension(format!("hardlink_{}", group_id));
+    let hardlink_path = file_path.with_extension(format!(
+        "hardlink_snapshot_{}_{}.tmp",
+        Uuid::new_v4(),
+        group_id
+    ));
 
     // 创建硬链接
     if let Err(e) = fs::hard_link(file_path, &hardlink_path).await {
@@ -35,15 +41,15 @@ pub async fn send_file_via_hardlink<P: AsRef<Path>>(
 
     // 处理发送结果
     match result {
-        Ok(_) => Ok(true),
+        Ok(uuid) => Ok(Option::from(uuid)),
         Err(e) => Err(e),
     }
 }
 pub async fn send_file_once<P: AsRef<Path>>(
     addr: &str,
-    group_id: u32,
+    group_id: GroupId,
     file_path: P,
-) -> Result<(), Box<dyn Error + Send + Sync>> {
+) -> Result<Uuid, Box<dyn Error + Send + Sync>> {
     // 连接
     let mut stream = TcpStream::connect(addr).await?;
     // 关闭 Nagle 以降低延迟 / 确保小包快速发出（与服务端一致）
@@ -60,9 +66,13 @@ pub async fn send_file_once<P: AsRef<Path>>(
     //零拷贝，直接将文件发送到网络缓冲区
     let bytes_copied = io::copy(&mut file, &mut stream).await?;
 
-    // 刷新并关闭写端，通知服务端 EOF
+    // 刷新并关闭写端，通知服务端
     stream.shutdown().await?;
-    Ok(())
+    //获取返回的文件名(uuid)
+    let mut buf = [0u8; 16];
+    stream.read_exact(&mut buf).await?;
+    let uuid = Uuid::from_bytes(buf);
+    Ok(uuid)
 }
 #[tokio::test]
 async fn test_send_file_once() -> Result<(), Box<dyn Error + Send + Sync>> {
@@ -82,7 +92,13 @@ async fn test_send_file_via_hardlink() -> Result<(), Box<dyn Error + Send + Sync
     let group_id = 1;
     let path = "E:/tmp/raft/1.png";
     match send_file_via_hardlink(ONE, group_id, path).await {
-        Ok(n) => println!("文件发送完成，字节数：{:?}", n),
+        Ok(n) => {
+            if let Some(uuid) = n {
+                println!("文件发送完成，文件名：{:?}", uuid);
+            } else {
+                println!("文件不存在");
+            }
+        }
         Err(e) => eprintln!("发送失败: {}", e),
     }
     Ok(())

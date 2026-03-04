@@ -127,8 +127,9 @@ async fn run_stream_mode(
     // 确保目录存在
     fs::create_dir_all(&snapshot_dir).await?;
 
+    let uuid = Uuid::new_v4();
     // 临时文件名
-    let temp_filename = format!("snapshot_from_master_{}_{}.tmp", Uuid::new_v4(), group_id);
+    let temp_filename = format!("snapshot_from_master_{}_{}.tmp", uuid, group_id);
     let final_filename = get_snapshot_file_name(group_id as GroupId);
 
     let temp_path = snapshot_dir.join(&temp_filename);
@@ -147,17 +148,20 @@ async fn run_stream_mode(
     }
 
     file.flush().await?;
-    // 确保文件完全持久化
+    // 确保文件完全持久化,可能持续很长时间
     file.sync_all().await?;
 
     // 关键：通过rename原子替换目标文件
-    fs::rename(&temp_path, &final_path).await?;
+    // fs::rename(&temp_path, &final_path).await?;
 
     tracing::info!(
         "{} 文件接收完成: {}",
         peer_addr,
         final_path.to_string_lossy()
     );
+    println!("{}", uuid.as_bytes().len());
+    //将生成的uuid返回给调用方
+    socket.write_all(uuid.as_bytes()).await?;
     Ok(())
 }
 

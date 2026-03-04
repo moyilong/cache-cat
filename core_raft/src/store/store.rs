@@ -21,6 +21,18 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU8, Ordering};
 
+pub struct FileStore {
+    pub path: String,
+}
+impl Drop for FileStore {
+    fn drop(&mut self) {
+        //销毁的时候如果文件存在，则删除文件
+        if Path::new(&self.path).exists() {
+            std::fs::remove_file(&self.path);
+        }
+    }
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct StoredSnapshot {
     pub meta: SnapshotMeta<TypeConfig>,
@@ -98,47 +110,8 @@ impl StateMachineStore {
 
         load_cache_from_path(cache, path).await?;
 
-        // let snapshot = sm.get_current_snapshot_()?;
-        // if let Some(snap) = snapshot {
-        //     //当存在快照的时候才会恢复状态机
-        //     sm.update_state_machine_(snap).await?;
-        // }
         Ok(sm)
     }
-
-    //
-    // async fn update_state_machine_(&mut self, snapshot: StoredSnapshot) -> Result<(), io::Error> {
-    //     let kvs: MyCache = bincode2::deserialize(&snapshot.data)
-    //         .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
-    //     self.data.last_applied_log_id = snapshot.meta.last_log_id;
-    //     self.data.last_membership = snapshot.meta.last_membership.clone();
-    //     self.data.kvs = kvs;
-    //     Ok(())
-    // }
-
-    // fn get_current_snapshot_(&self) -> Result<Option<StoredSnapshot>, io::Error> {
-    //     Ok(self
-    //         .db
-    //         .get_cf(self.store(), b"snapshot")
-    //         .map_err(io::Error::other)?
-    //         .and_then(|v| bincode2::deserialize::<StoredSnapshot>(&v).ok()))
-    // }
-    //
-    // fn set_current_snapshot_(&self, snap: StoredSnapshot) -> Result<(), io::Error> {
-    //     self.db
-    //         .put_cf(
-    //             self.store(),
-    //             b"snapshot",
-    //             bincode2::serialize(&snap).unwrap().as_slice(),
-    //         )
-    //         .map_err(io::Error::other)?;
-    //     self.db.flush_wal(true).map_err(io::Error::other)?;
-    //     Ok(())
-    // }
-    //
-    // fn store(&self) -> &ColumnFamily {
-    //     self.db.cf_handle("store").unwrap()
-    // }
 }
 
 impl RaftStateMachine<TypeConfig> for StateMachineStore {
@@ -219,7 +192,7 @@ impl RaftStateMachine<TypeConfig> for StateMachineStore {
     }
 
     async fn get_current_snapshot(&mut self) -> Result<Option<Snapshot<TypeConfig>>, io::Error> {
-        //理论上这里的load是多余的，因为发送的时候还会从磁盘上读取一次
+        //理论上这里的load是多余的，因为发送的时候还会从磁盘上读取一次，会和读取的不一样
         let path = load_meta_from_path(&self.path).await?;
         match path {
             None => Ok(None),

@@ -4,6 +4,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::OnceLock;
 use tokio::io;
+use uuid::Uuid;
 
 pub const ONE: &str = "127.0.0.1:3001";
 pub const TWO: &str = "127.0.0.1:3002";
@@ -59,3 +60,4 @@ pub fn create_temp_dir() -> io::Result<PathBuf> {
     fs::create_dir_all(path)?;
     Ok(path.to_path_buf())
 }
+

@@ -2,6 +2,7 @@ use crate::network::node::{GroupId, NodeId, TypeConfig};
 use crate::server::client::client::{RpcClient, RpcMultiClient};
 use crate::server::handler::model::{AppendEntriesReq, InstallFullSnapshotReq, VoteReq};
 
+use crate::server::client::file_client::send_file_via_hardlink;
 use openraft::alias::VoteOf;
 use openraft::error::{RPCError, ReplicationClosed, StreamingError, Unreachable};
 use openraft::network::RPCOption;
@@ -11,6 +12,7 @@ use openraft::raft::{
 use openraft::{OptionalSend, RaftNetworkFactory, Snapshot};
 use openraft_multi::{GroupNetworkAdapter, GroupNetworkFactory, GroupRouter};
 use std::collections::HashMap;
+use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Instant;
 use tokio::sync::RwLock;
@@ -42,12 +44,14 @@ pub struct Router {
     /// 所有节点都有这个nodes副本
     pub nodes: Box<HashMap<NodeId, RpcMultiClient>>,
     pub addr: String,
+    pub path: PathBuf,
 }
 impl Router {
-    pub fn new(addr: String) -> Self {
+    pub fn new(addr: String, path: PathBuf) -> Self {
         Self {
             nodes: Box::new((HashMap::new())),
             addr,
+            path,
         }
     }
     // pub async fn register_node(&mut self, node_id: NodeId) {}
@@ -66,12 +70,10 @@ impl GroupRouter<TypeConfig, GroupId> for Router {
             let i = rpc.entries.len();
             tracing::info!("send entries len:{}", i);
         }
-
         let req = AppendEntriesReq {
             append_entries: rpc,
             group_id,
         };
-
         match self.nodes.get(&target) {
             None => {
                 tracing::info!(
@@ -87,9 +89,7 @@ impl GroupRouter<TypeConfig, GroupId> for Router {
             Some(client) => {
                 // ----------- 统计开始 -----------
                 let start = Instant::now();
-
                 let result = client.call(7, req).await;
-
                 let elapsed = start.elapsed();
                 tracing::info!(
                     "RPC call slave to node {} took {:?}",
@@ -159,6 +159,15 @@ impl GroupRouter<TypeConfig, GroupId> for Router {
         cancel: impl Future<Output = ReplicationClosed> + OptionalSend + 'static,
         option: RPCOption,
     ) -> Result<SnapshotResponse<TypeConfig>, StreamingError<TypeConfig>> {
+        let file_path = self
+            .path
+            .join("snapshot")
+            .join(format!("snapshot_{}.bin", group_id));
+        //先发送整个快照
+        let result = send_file_via_hardlink(&self.addr, group_id, file_path)
+            .await.unwrap();
+
+        //在这里发送快照的信息
         let data = snapshot.snapshot.into_inner();
         let req = InstallFullSnapshotReq {
             vote,

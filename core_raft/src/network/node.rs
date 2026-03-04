@@ -1,17 +1,15 @@
 use crate::network::model::{Request, Response};
 use crate::network::router::{MultiNetworkFactory, Router};
 use crate::server::core::config::GROUP_NUM;
-use crate::store::raft_engine::create_raft_engine;
 use crate::store::log_store::LogStore;
+use crate::store::raft_engine::create_raft_engine;
+use crate::store::store::StateMachineStore;
 use openraft::Config;
 use openraft::SnapshotPolicy::LogsSinceLast;
 use std::collections::HashMap;
 use std::io::Cursor;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
-use crate::store::store::StateMachineStore;
-
-
 
 openraft::declare_raft_types!(
     /// Declare the type configuration for example K/V store.
@@ -48,15 +46,12 @@ pub fn get_group(app: &App, hash_code: u64) -> &CacheCatApp {
 pub struct Node {
     pub node_id: NodeId,
     pub groups: HashMap<GroupId, CacheCatApp>,
-    pub router: Router,
 }
 impl Node {
     pub fn new(node_id: NodeId, addr: String) -> Self {
-        let router = Router::new(addr.clone());
         Self {
             node_id,
             groups: HashMap::new(),
-            router,
         }
     }
     pub fn add_group(
@@ -103,13 +98,9 @@ where
     for i in 0..GROUP_NUM {
         let group_id = i as GroupId;
         // let raft_engine = dir.as_ref().join(format!("raft-engine-{}", group_id));
-        // let path = if i == 1 {
-        // let path = TempDir::new_in(r"E:\tmp\raft\raft-engine").unwrap().into_path();
-        // } else {
-        //     TempDir::new_in(r"E:\tmp\raft\raft-engine").unwrap().into_path()
-        // };
+        // TempDir::new_in(r"E:\tmp\raft\raft-engine").unwrap().into_path()
         // let engine = create_raft_engine(path);
-        let router = Router::new(addr.to_string());
+        let router = Router::new(addr.to_string(), dir.as_ref().join(""));
         let network = MultiNetworkFactory::new(router, group_id);
         let log_store = LogStore::new(group_id, engine.clone());
         let sm_store = StateMachineStore::new(path.clone(), group_id)
