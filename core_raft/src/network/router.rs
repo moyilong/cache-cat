@@ -2,6 +2,7 @@ use crate::network::node::{GroupId, NodeId, TypeConfig};
 use crate::server::client::client::{RpcClient, RpcMultiClient};
 use crate::server::handler::model::{AppendEntriesReq, InstallFullSnapshotReq, VoteReq};
 
+use dashmap::DashMap;
 use openraft::alias::VoteOf;
 use openraft::error::{RPCError, ReplicationClosed, StreamingError, Unreachable};
 use openraft::network::RPCOption;
@@ -10,26 +11,40 @@ use openraft::raft::{
 };
 use openraft::{OptionalSend, RaftNetworkFactory, Snapshot};
 use openraft_multi::{GroupNetworkAdapter, GroupNetworkFactory, GroupRouter};
-use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
-use std::time::Instant;
-use tokio::sync::RwLock;
+use std::time::{Duration, Instant};
+use tokio::time::sleep;
 
 pub type MultiNetworkFactory = GroupNetworkFactory<Router, GroupId>;
 impl RaftNetworkFactory<TypeConfig> for MultiNetworkFactory {
     type Network = GroupNetworkAdapter<TypeConfig, GroupId, Router>;
 
-    //实际创建连接
-    //TODO 定时重连
     async fn new_client(&mut self, target: NodeId, node: &openraft::BasicNode) -> Self::Network {
-        let mut router = self.factory.clone();
-        match RpcMultiClient::connect(&*node.addr).await {
+        let router = self.factory.clone();
+        let addr = node.addr.clone();
+        let nodes = router.nodes.clone();
+        match RpcMultiClient::connect(&addr).await {
             Ok(client) => {
-                router.nodes.insert(target, client);
+                nodes.insert(target, client);
             }
             Err(_) => {
-                tracing::info!("connect to node {} failed", node.addr)
+                tracing::info!("connect to node {} failed, start retrying", addr);
+                tokio::spawn(async move {
+                    loop {
+                        sleep(Duration::from_secs(1)).await;
+                        match RpcMultiClient::connect(&addr).await {
+                            Ok(client) => {
+                                tracing::info!("reconnect to {} success", addr);
+                                nodes.insert(target, client);
+                                break; // 成功后退出循环
+                            }
+                            Err(_) => {
+                                tracing::debug!("retry connect to {} failed", addr);
+                            }
+                        }
+                    }
+                });
             }
         }
         GroupNetworkAdapter::new(router, target, self.group_id.clone())
@@ -41,14 +56,14 @@ impl RaftNetworkFactory<TypeConfig> for MultiNetworkFactory {
 pub struct Router {
     /// Map from node_id to node connection.
     /// 所有节点都有这个nodes副本
-    pub nodes: Box<HashMap<NodeId, RpcMultiClient>>,
+    pub nodes: Arc<DashMap<NodeId, RpcMultiClient>>,
     pub addr: String,
     pub path: PathBuf,
 }
 impl Router {
     pub fn new(addr: String, path: PathBuf) -> Self {
         Self {
-            nodes: Box::new((HashMap::new())),
+            nodes: Arc::new((DashMap::new())),
             addr,
             path,
         }
@@ -86,7 +101,6 @@ impl GroupRouter<TypeConfig, GroupId> for Router {
                 ))))
             }
             Some(client) => {
-                // ----------- 统计开始 -----------
                 let start = Instant::now();
                 let result = client.call(7, req).await;
                 let elapsed = start.elapsed();
@@ -95,8 +109,6 @@ impl GroupRouter<TypeConfig, GroupId> for Router {
                     target as u64,
                     elapsed
                 );
-                // ----------- 统计结束 -----------
-
                 match result {
                     Ok(r) => Ok(r),
                     Err(e) => {
@@ -156,16 +168,40 @@ impl GroupRouter<TypeConfig, GroupId> for Router {
         vote: VoteOf<TypeConfig>,
         snapshot: Snapshot<TypeConfig>,
         cancel: impl Future<Output = ReplicationClosed> + OptionalSend + 'static,
-        option: RPCOption,
+        _option: RPCOption,
     ) -> Result<SnapshotResponse<TypeConfig>, StreamingError<TypeConfig>> {
-        //在这里发送快照的信息
-        let data = snapshot.snapshot.send_file(&self.addr).await.unwrap();
+        // 如果节点不存在，返回 StreamingError
+        let client = match self.nodes.get(&target) {
+            None => {
+                return Err(StreamingError::Unreachable(Unreachable::from_string(
+                    format!("node {} not found", target as u64),
+                )));
+            }
+            Some(c) => c,
+        };
+
+        // 发送
+        let _ = snapshot.snapshot.send_file(&self.addr).await.unwrap();
+
         let req = InstallFullSnapshotReq {
             vote,
             snapshot_meta: snapshot.meta,
             snapshot: snapshot.snapshot,
             group_id,
         };
-        self.nodes.get(&target).unwrap().call(8, req).await.unwrap()
+
+        let result = client.call(8, req).await;
+
+        match result {
+            Ok(resp) => Ok(resp),
+
+            Err(e) => {
+                tracing::info!("snapshot RPC to node {} failed: {}", target as u64, e);
+
+                Err(StreamingError::Unreachable(Unreachable::from_string(
+                    format!("snapshot RPC to node {} failed: {}", target as u64, e),
+                )))
+            }
+        }
     }
 }

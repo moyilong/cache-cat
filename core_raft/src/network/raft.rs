@@ -7,6 +7,8 @@ use openraft::{BasicNode, Config};
 use std::collections::BTreeMap;
 use std::path::Path;
 use std::sync::Arc;
+use tokio::time::sleep;
+use uuid::Uuid;
 
 // pub async fn start_raft_app<P>(node_id: NodeId, dir: P, addr: String) -> std::io::Result<()>
 // where
@@ -105,10 +107,10 @@ where
         }
         let apps_for_task = apps.clone();
 
-        // tokio::spawn(async move {
-        //     tokio::time::sleep(std::time::Duration::from_secs(3)).await;
-        //     benchmark_requests(apps_for_task).await;
-        // });
+        tokio::spawn(async move {
+            tokio::time::sleep(std::time::Duration::from_secs(3)).await;
+            benchmark_requests(apps_for_task).await;
+        });
     }
 
     rpc::start_server(App::new(apps), addr).await
@@ -119,19 +121,20 @@ async fn benchmark_requests(apps: Vec<Arc<CacheCatApp>>) {
     println!("Starting benchmark...");
     let start_time = std::time::Instant::now();
     let mut handles = Vec::new();
-    let thread = 500;
-    let num = 50000;
+    let thread = 1;
+    let num = 1000;
     // 创建 100 个并发任务
     for _ in 0..thread {
         let apps_clone = apps.clone();
         let handle = tokio::spawn(async move {
             for i in 0..num {
+                // sleep(std::time::Duration::from_millis(1)).await;
                 let request = Request::Set(SetReq {
-                    key: Vec::from(format!("test_{}", i)),
+                    key: Vec::from(Uuid::new_v4().as_bytes()),
                     value: Vec::from(format!("value_{}", i)),
                     ex_time: 0,
                 });
-
+                //往第一个group发送请求
                 if let Some(app) = apps_clone.get(0) {
                     match app.raft.client_write(request).await {
                         Ok(_) => (),

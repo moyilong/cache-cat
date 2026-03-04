@@ -57,9 +57,20 @@ fn multi_raft() -> Result<(), Box<dyn std::error::Error>> {
     fs::create_dir_all(base)?;
 
     // 在临时目录下创建每个节点的子目录
-    let d1 = TempDir::new_in(base).unwrap().keep();
-    let d2 = TempDir::new_in(base).unwrap().keep();
-    let d3 = TempDir::new_in(base).unwrap().keep();
+    let d1 = tempfile::Builder::new()
+        .suffix("_1")
+        .tempdir_in(base)?
+        .keep();
+
+    let d2 = tempfile::Builder::new()
+        .suffix("_2")
+        .tempdir_in(base)?
+        .keep();
+
+    let d3 = tempfile::Builder::new()
+        .suffix("_3")
+        .tempdir_in(base)?
+        .keep();
     // Setup the logger
     tracing_subscriber::fmt()
         .with_target(true)
@@ -107,15 +118,7 @@ fn multi_raft() -> Result<(), Box<dyn std::error::Error>> {
             .expect("Failed to create Tokio runtime");
         let result = rt.block_on(start_multi_raft_app(1, d1, String::from(ONE)));
     });
-    let _h2 = thread::spawn(move || {
-        let rt = Builder::new_multi_thread()
-            .max_blocking_threads(512)
-            .worker_threads(num_cpus / 3)
-            .enable_all()
-            .build()
-            .expect("Failed to create Tokio runtime");
-        let x = rt.block_on(start_multi_raft_app(2, d2, String::from(TWO)));
-    });
+
     let _h3 = thread::spawn(move || {
         let rt = Builder::new_multi_thread()
             .max_blocking_threads(512)
@@ -125,9 +128,21 @@ fn multi_raft() -> Result<(), Box<dyn std::error::Error>> {
             .expect("Failed to create Tokio runtime");
         let x = rt.block_on(start_multi_raft_app(3, d3, String::from(THREE)));
     });
+
+    sleep(Duration::from_secs(11));
+    let _h2 = thread::spawn(move || {
+        let rt = Builder::new_multi_thread()
+            .max_blocking_threads(512)
+            .worker_threads(num_cpus / 3)
+            .enable_all()
+            .build()
+            .expect("Failed to create Tokio runtime");
+        let x = rt.block_on(start_multi_raft_app(2, d2, String::from(TWO)));
+    });
     sleep(Duration::from_secs(40000));
     Ok(())
 }
+
 // async fn raft() -> Result<(), Box<dyn std::error::Error>> {
 //     // let base = r"E:\tmp\raft\rocks";
 //     let base_dir = tempfile::tempdir()?;

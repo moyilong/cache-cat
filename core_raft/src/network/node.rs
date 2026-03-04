@@ -1,5 +1,6 @@
 use crate::network::model::{Request, Response};
 use crate::network::router::{MultiNetworkFactory, Router};
+use crate::server::client::file_client::FileOperator;
 use crate::server::core::config::GROUP_NUM;
 use crate::store::log_store::LogStore;
 use crate::store::raft_engine::create_raft_engine;
@@ -10,7 +11,6 @@ use std::collections::HashMap;
 use std::io::Cursor;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
-use crate::server::client::file_client::FileOperator;
 
 openraft::declare_raft_types!(
     /// Declare the type configuration for example K/V store.
@@ -80,8 +80,6 @@ where
     P: AsRef<Path>,
 {
     let path = dir.as_ref().join("");
-    // let rocksdb_path = dir.as_ref().join("rocksdb");
-    // let db: Arc<DB> = new_storage(rocksdb_path).await;
     let mut node = Node::new(node_id, addr.to_string());
     let raft_engine = dir.as_ref().join("raft-engine");
     let engine = create_raft_engine(raft_engine.clone());
@@ -89,18 +87,18 @@ where
         heartbeat_interval: 250,
         election_timeout_min: 299,
         election_timeout_max: 599, // 添加最大选举超时时间
-        max_payload_entries: 10000000,
-        purge_batch_size: 10000000,
-        max_append_entries: Some(10000000),
+        purge_batch_size: 1,
+        max_in_snapshot_log_to_keep: 1,
+        max_append_entries: Some(50),
+        max_payload_entries: 50,
         snapshot_policy: LogsSinceLast(100),
-        replication_lag_threshold: 10000000, //需要大于snapshot_policy
+        replication_lag_threshold: 200, //需要大于snapshot_policy
         ..Default::default()
     });
     for i in 0..GROUP_NUM {
         let group_id = i as GroupId;
-        // let raft_engine = dir.as_ref().join(format!("raft-engine-{}", group_id));
-        // TempDir::new_in(r"E:\tmp\raft\raft-engine").unwrap().into_path()
-        // let engine = create_raft_engine(path);
+        // let engine_path = dir.as_ref().join(format!("raft-engine-{}", group_id));
+        // let engine = create_raft_engine(engine_path);
         let router = Router::new(addr.to_string(), dir.as_ref().join(""));
         let network = MultiNetworkFactory::new(router, group_id);
         let log_store = LogStore::new(group_id, engine.clone());

@@ -105,6 +105,9 @@ impl MyCache {
     pub fn get(&self, key: &Arc<Vec<u8>>) -> Option<MyValue> {
         self.cache.get(key)
     }
+    pub fn count(&self) -> u64 {
+        self.cache.entry_count()
+    }
 
     // todo 优化为字节编码
     //流式序列化和反序列化
@@ -179,6 +182,7 @@ where
     // 创建临时文件名
     let temp_filename = format!("snapshot_from_mem_{}_{}.tmp", Uuid::new_v4(), group_id);
     let final_filename = get_snapshot_file_name(group_id as GroupId);
+    println!("文件名：{}", final_filename);
 
     let temp_path = snapshot_dir.join(&temp_filename);
     let final_path = snapshot_dir.join(&final_filename);
@@ -201,7 +205,6 @@ where
 
     // 通过 rename 原子替换目标文件
     fs::rename(&temp_path, &final_path).await?;
-
 
     Ok(())
 }

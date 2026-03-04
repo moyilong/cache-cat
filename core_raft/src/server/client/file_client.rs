@@ -33,7 +33,7 @@ impl FileOperator {
             .as_ref()
             .join("snapshot")
             .join(format!("snapshot_{}.bin", group_id));
-        println!("snapshot_path: {}", snapshot_path.display());
+        // println!("snapshot_path: {}", snapshot_path.display());
         // 1. 检查文件是否存在
         match fs::metadata(&snapshot_path).await {
             Ok(_) => {
@@ -63,7 +63,7 @@ impl FileOperator {
     //在收到快照后从节点安装的时候会调用这个方法来获得新的硬链接路径
     pub fn get_local_hard_link_buf(&self, path: &PathBuf) -> PathBuf {
         let hardlink_filename = format!("hardlink_snapshot_{}_{}.tmp", self.uuid, self.group_id);
-        let hardlink_path = path.join(hardlink_filename);
+        let hardlink_path = path.join("snapshot").join(hardlink_filename);
         hardlink_path
     }
 
