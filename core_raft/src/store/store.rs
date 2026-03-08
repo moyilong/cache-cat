@@ -1,8 +1,6 @@
 use crate::network::model::{Request, Response};
 use crate::network::node::{GroupId, TypeConfig};
-use crate::server::core::moka::{
-    MyCache, MyValue, dump_cache_to_path, load_cache_from_path, load_meta_from_path,
-};
+use crate::server::core::moka::{MyCache, MyValue, dump_cache_to_path, load_cache_from_path};
 use crate::server::handler::model::SetRes;
 use futures::Stream;
 use futures::TryStreamExt;
@@ -13,6 +11,7 @@ use openraft::{OptionalSend, Snapshot, StoredMembership};
 use openraft::{RaftSnapshotBuilder, RaftTypeConfig};
 
 use crate::server::client::file_client::FileOperator;
+use crate::server::core::config::get_snapshot_file_name;
 use serde::Deserialize;
 use serde::Serialize;
 use std::collections::HashMap;
@@ -121,8 +120,8 @@ impl StateMachineStore {
             path: path.clone(),
             group_id,
         };
-
-        load_cache_from_path(cache, path).await?;
+        let filename = get_snapshot_file_name(group_id);
+        load_cache_from_path(cache, path.join("snapshot").join(filename)).await?;
 
         Ok(sm)
     }
