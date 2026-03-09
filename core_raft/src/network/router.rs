@@ -4,7 +4,7 @@ use crate::server::handler::model::{AppendEntriesReq, InstallFullSnapshotReq, Vo
 
 use dashmap::DashMap;
 use openraft::alias::VoteOf;
-use openraft::error::{RPCError, ReplicationClosed, StreamingError, Unreachable};
+use openraft::error::{RPCError, RemoteError, ReplicationClosed, StreamingError, Unreachable};
 use openraft::network::RPCOption;
 use openraft::raft::{
     AppendEntriesRequest, AppendEntriesResponse, SnapshotResponse, VoteRequest, VoteResponse,

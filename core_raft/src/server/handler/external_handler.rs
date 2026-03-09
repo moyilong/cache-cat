@@ -11,7 +11,6 @@ use openraft::raft::{
 };
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
-use std::fmt;
 use std::hash::{DefaultHasher, Hash, Hasher};
 use std::time::Instant;
 
@@ -75,27 +74,17 @@ where
 }
 
 // --- 业务函数全部改为 async ---
-
-#[derive(Debug, Serialize, Deserialize, thiserror::Error)]
-pub enum MyError {
-    #[error("{0}")]
-    Io(String),
-}
-
-async fn print_test(_app: App, d: PrintTestReq) -> Result<PrintTestRes, MyError> {
-    // Ok(PrintTestRes { message: d.message })
-    Err(MyError::Io("test".to_string()))
+async fn print_test(_app: App, d: PrintTestReq) -> Result<PrintTestRes, String> {
+    Ok(PrintTestRes { message: d.message })
 }
 
 // 主节点才能成功调用这个方法，其他节点会失败
-async fn write(
-    app: App,
-    req: Request,
-) -> Result<ClientWriteResponse<TypeConfig>, RaftError<TypeConfig, ClientWriteError<TypeConfig>>> {
-    // 根据请求判断属于哪个组
+async fn write(app: App, req: Request) -> Result<ClientWriteResponse<TypeConfig>, String> {
     let group = get_group(&app, req.hash_code());
-    let res = group.raft.client_write(req).await;
-    res
+    group.raft.client_write(req).await.map_err(|e| {
+        tracing::error!("write error: {:?}", e);
+        e.to_string()
+    })
 }
 async fn read(app: App, req: String) -> Result<Option<String>, RaftError<TypeConfig>> {
     // let group = get_group(&app, hash_string(&req));
@@ -106,23 +95,27 @@ async fn read(app: App, req: String) -> Result<Option<String>, RaftError<TypeCon
 }
 
 //TODO 向上传播错误
-async fn vote(app: App, req: VoteReq) -> Result<VoteResponse<TypeConfig>, RaftError<TypeConfig>> {
+async fn vote(app: App, req: VoteReq) -> Result<VoteResponse<TypeConfig>, String> {
     // openraft 的 vote 是异步的
     let group = get_app(&app, req.group_id);
-    group.raft.vote(req.vote).await
+    group.raft.vote(req.vote).await.map_err(|e| {
+        tracing::error!("vote error: {:?}", e);
+        e.to_string()
+    })
 }
 
 //理论上只有从节点会被调用这个方法
 async fn append_entries(
     app: App,
     req: AppendEntriesReq,
-) -> Result<AppendEntriesResponse<TypeConfig>, RaftError<TypeConfig>> {
+) -> Result<AppendEntriesResponse<TypeConfig>, String> {
     let start = Instant::now();
     let e = req.append_entries.entries.is_empty();
     let res = get_app(&app, req.group_id)
         .raft
         .append_entries(req.append_entries)
-        .await;
+        .await
+        .map_err(|e| e.to_string());
     let elapsed = start.elapsed();
     if !e {
         tracing::info!("append 从节点内部处理: {:?} ", elapsed);
@@ -135,7 +128,7 @@ async fn append_entries(
 async fn install_full_snapshot(
     app: App,
     req: InstallFullSnapshotReq,
-) -> Result<SnapshotResponse<TypeConfig>, Fatal<TypeConfig>> {
+) -> Result<SnapshotResponse<TypeConfig>, String> {
     let snapshot = Snapshot {
         meta: req.snapshot_meta,
         snapshot: req.snapshot,
@@ -144,4 +137,5 @@ async fn install_full_snapshot(
         .raft
         .install_full_snapshot(req.vote, snapshot)
         .await
+        .map_err(|e| e.to_string())
 }

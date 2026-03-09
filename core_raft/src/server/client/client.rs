@@ -1,12 +1,11 @@
 use crate::network::node::{NodeId, TypeConfig};
 use crate::server::core::config::TCP_CONNECT_NUM;
-use crate::server::handler::external_handler::MyError;
 use bincode2;
 use bytes::{BufMut, Bytes, BytesMut};
 use crossbeam_utils::CachePadded;
 use futures::task::AtomicWaker;
 use futures::{SinkExt, StreamExt};
-use openraft::error::{NetworkError, RPCError, RemoteError};
+use openraft::error::{NetworkError, RPCError, RemoteError, Unreachable};
 use parking_lot::Mutex;
 use serde::Serialize;
 use serde::de::DeserializeOwned;
@@ -191,16 +190,15 @@ impl RpcClient {
         })
     }
 
-    pub async fn call<Req, Res, E>(
+    pub async fn call<Req, Res>(
         &self,
         func_id: u32,
         req: Req,
         node_id: NodeId,
-    ) -> Result<Res, RPCError<TypeConfig, E>>
+    ) -> Result<Res, RPCError<TypeConfig>>
     where
         Req: Serialize,
         Res: DeserializeOwned,
-        E: Error + DeserializeOwned,
     {
         let request_id = self.next_request_id.fetch_add(1, Ordering::Relaxed);
         let idx = (request_id & INDEX_MASK) as usize;
@@ -241,9 +239,9 @@ impl RpcClient {
         let response_bytes = waiter
             .await
             .map_err(|e| RPCError::Network(NetworkError::new(&e)))?;
-        let remote_result: Result<Res, E> = bincode2::deserialize(&response_bytes)
+        let remote_result: Result<Res, String> = bincode2::deserialize(&response_bytes)
             .map_err(|e| RPCError::Network(NetworkError::new(&e)))?;
-        remote_result.map_err(|e| RPCError::RemoteError(RemoteError::new(node_id, e)))
+        remote_result.map_err(|e| RPCError::Unreachable(Unreachable::from_string(&e)))
     }
 }
 
