@@ -8,18 +8,18 @@
 
 ## Hash
 
-通过 Rust自带的hashmap进行实现。如要读写并发，只能使用flurry。
+通过 Rust自带的hashmap进行实现。Dashmap实现读写锁。如要读写并发，只能使用flurry。
 
 ## List
 
-使用 `std::collections::LinkedList` 实现
+使用 `std::collections::LinkedList` 实现。读写并发可以用crossbeam SegQueue实现。
 
 ## Set
 
-无序集合 暂用rust的hashset实现
+无序集合 暂用rust的hashset实现。Dashmap实现读写锁。如要读写并发，只能使用flurry。
 
 ## Sorted Set
-在 Redis中也叫 Zset 。暂时用自带的 BTreeSet来进行实现
+在 Redis中也叫 Zset 。暂时用自带的 BTreeSet来进行实现 crossbeam的skiplist。
 
 ## 其他
-已知Redis还支持bitmap，hyperloglog，Geospatial，Streams，Bitfield等。暂不未有计划支持。
+已知Redis还支持bitmap，hyperloglog，Geospatial，Streams，Bitfield等。暂未有计划支持。

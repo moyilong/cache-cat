@@ -2,9 +2,9 @@
 
 ## 常见的快照策略
 
-consul，使用go-memdb进行存储，其实现了mvcc机制。zookeeper，将所有操作变成CAS操作，因此后续的请求可以被应用多次而达到相同的数据逻辑。
+consul，使用go-memdb进行存储，其实现了mvcc机制。zookeeper，将所有操作变成CAS操作，因此后续的请求可以被应用多次，从而达到相同的数据逻辑。
 
-dragonboat，通过任期手动标识哪些数据是旧的哪些数据是新的，执行完快照逻辑后手动收集变动部分数据。ETCD，通过存储层的数据库来直接实现MVCC快照。Redis 通过linux下的fork指令。
+dragonflydb，通过任期手动标识哪些数据是旧的哪些数据是新的，执行完快照逻辑后手动收集变动部分数据。ETCD，通过存储层的数据库来直接实现MVCC快照。Redis 通过linux下的fork指令（linux的fork会复制整个进程的地址空间，但只复制调用fork的那个线程）。
 
 ## cache-cat快照策略
 

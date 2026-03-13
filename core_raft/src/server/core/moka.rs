@@ -11,6 +11,7 @@ use std::option::Option;
 use std::path::Path;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
+use moka::ops::compute::Op;
 use tokio::fs::File;
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, BufReader, BufWriter};
 use tokio::{fs, io};
@@ -110,6 +111,36 @@ impl MyCache {
         self.cache.entry_count()
     }
 
+    pub async fn append(&self, key: Arc<Vec<u8>>, suffix:Arc<Vec<u8>>) {
+        self.cache
+            .entry(key)
+            .and_compute_with(move |maybe_entry| {
+                let suffix = suffix.clone();
+                async move {
+                    match maybe_entry {
+                        Some(entry) => {
+                            let mut value = entry.into_value();
+                            // 关键：不会复制旧数据
+                            let data = Arc::make_mut(&mut value.data);
+                            data.extend_from_slice(&suffix);
+                            Op::Put(value)
+                        }
+                        None => {
+                            let mut v = Vec::with_capacity(suffix.len());
+                            v.extend_from_slice(&suffix);
+
+                            Op::Put(MyValue {
+                                is_snapshot: false,
+                                data: Arc::new(v),
+                                ttl_ms: 0,
+                            })
+                        }
+                    }
+                }
+            })
+            .await;
+    }
+
     // todo 优化为字节编码
     //流式序列化和反序列化
     pub async fn dump_cache_to_writer<W>(&self, writer: &mut W) -> Result<(), io::Error>
@@ -165,6 +196,7 @@ impl MyCache {
 
         Ok(())
     }
+
 }
 pub async fn dump_cache_to_path<P>(
     cache: MyCache,
@@ -319,6 +351,7 @@ async fn test_dump_and_load_with_data() {
 
     cache.insert(key1.clone(), value1.clone()).await;
     cache.insert(key2.clone(), value2.clone()).await;
+    cache.append(key2.clone(), value2.clone().data).await;
 
     let path = create_temp_dir().unwrap().join("snapshot.bin");
     // 转储到临时文件
