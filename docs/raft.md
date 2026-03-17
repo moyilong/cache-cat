@@ -8,6 +8,10 @@ dragonflydb，通过任期手动标识哪些数据是旧的哪些数据是新的
 
 ## cache-cat快照策略
 
+> remove分为2种情况
+>
+> remove了一个被扫过的数据，和remove了一个没扫过的数据。
+
 要在不停机的情况下实现快照是复杂的。因为raft必须要求快照是一个时间点的统一快照。并且cache-cat在内存中并没有维护mvcc策略。
 以下是cache-cat实现快照的说明。
 由于raft的状态机是单线程的。快照线程理论上可以并发，但由于通常快照的瓶颈在于磁盘，因此这里只采用一个线程来实现。
@@ -37,7 +41,7 @@ dragonflydb，通过任期手动标识哪些数据是旧的哪些数据是新的
 2. 如果当前snapshot_state为false。直接将数据写入cache_map结束。
 3. 如果当前snapshot状态为true：
    - 当前操作为put：查询现有数据是否存在于cache_map，且是否比当前快照编号小。如果存在且小（代表这个数据是旧的），放到old_map中。然后原地更新到cache_map的值，并将snapshot_state字段更新。
-   - 当前操作为remove：查询现有数据是否存在于cache_map，且是否比当前快照编号小。如果存在且小（代表数据是旧的），放到old_map中。然后原地删除cache_map的值。
+   - 当前操作为remove：查询现有数据是否存在于cache_map，且是否比当前快照编号小。如果存在且小（代表数据是旧的），放到removed_map中。然后原地删除cache_map的值。
 4. 更新last_applied_log_id
 5. 最后释放锁
 

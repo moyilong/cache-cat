@@ -1,26 +1,26 @@
 use crate::network::node::{GroupId, TypeConfig};
 use crate::server::core::config::{create_temp_dir, get_snapshot_file_name};
 use byteorder::LittleEndian;
+use dashmap::DashMap;
 use moka::Expiry;
 use moka::future::Cache;
+use moka::ops::compute::Op;
 use openraft::SnapshotMeta;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
-use std::error::Error;
 use std::mem::size_of;
 use std::option::Option;
 use std::path::Path;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
-use moka::ops::compute::Op;
 use tokio::fs::File;
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, BufReader, BufWriter};
 use tokio::{fs, io};
-use tracing::trace;
 use uuid::Uuid;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct MyValue {
-    pub is_snapshot: bool,
+    #[serde(skip_serializing, default)]
+    pub snapshot_num: u32, //快照编号 不需要进行序列化
     pub data: Arc<Vec<u8>>,
     pub ttl_ms: u64,
 }
@@ -99,6 +99,24 @@ impl MyCache {
     pub async fn insert(&self, key: Arc<Vec<u8>>, value: MyValue) {
         self.cache.insert(key, value).await
     }
+    pub async fn snapshot_insert(
+        &self,
+        key: Arc<Vec<u8>>,
+        value: MyValue,
+        snapshot_num: u32,
+        old_map: Arc<DashMap<Arc<Vec<u8>>, MyValue>>,
+    ) {
+        self.cache
+            .entry(key.clone())
+            .or_insert_with_if(async { value }, |old_value| {
+                if old_value.snapshot_num <= snapshot_num {
+                    old_map.entry(key.clone()).or_insert(old_value.clone());
+                }
+                true
+            })
+            .await;
+        return;
+    }
     pub fn invalidate_all(&self) {
         self.cache.invalidate_all();
     }
@@ -111,7 +129,7 @@ impl MyCache {
         self.cache.entry_count()
     }
 
-    pub async fn append(&self, key: Arc<Vec<u8>>, suffix:Arc<Vec<u8>>) {
+    pub async fn append(&self, key: Arc<Vec<u8>>, suffix: Arc<Vec<u8>>, snapshot_num: u32) {
         self.cache
             .entry(key)
             .and_compute_with(move |maybe_entry| {
@@ -128,9 +146,8 @@ impl MyCache {
                         None => {
                             let mut v = Vec::with_capacity(suffix.len());
                             v.extend_from_slice(&suffix);
-
                             Op::Put(MyValue {
-                                is_snapshot: false,
+                                snapshot_num,
                                 data: Arc::new(v),
                                 ttl_ms: 0,
                             })
@@ -143,12 +160,38 @@ impl MyCache {
 
     // todo 优化为字节编码
     //流式序列化和反序列化
-    pub async fn dump_cache_to_writer<W>(&self, writer: &mut W) -> Result<(), io::Error>
+    pub async fn dump_cache_to_writer<W>(
+        &self,
+        writer: &mut W,
+        old_map: Arc<DashMap<Arc<Vec<u8>>, MyValue>>,
+        removed_map: Arc<DashMap<Arc<Vec<u8>>, MyValue>>,
+        current_snapshot_num: u32,
+    ) -> Result<(), io::Error>
     where
         W: AsyncWrite + Unpin + Send,
     {
         for entry in self.cache.iter() {
-            let (k_arc, v) = entry;
+            let (k_arc, mut v) = entry;
+            if v.snapshot_num >= current_snapshot_num {
+                // 如果数据是新的
+                if let Some(old_v) = old_map.get(&*k_arc) {
+                    v = old_v.to_owned();
+                } else {
+                    continue;
+                }
+            }
+            let key_bytes = bincode2::serialize(&*k_arc)
+                .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
+            let val_bytes = bincode2::serialize(&v)
+                .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
+            writer.write_u64(key_bytes.len() as u64).await?;
+            writer.write_all(&key_bytes).await?;
+            writer.write_u64(val_bytes.len() as u64).await?;
+            writer.write_all(&val_bytes).await?;
+        }
+        for entry in removed_map.iter() {
+            let k_arc = entry.key();
+            let v = entry.value();
             let key_bytes = bincode2::serialize(&*k_arc)
                 .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
             let val_bytes = bincode2::serialize(&v)
@@ -196,13 +239,15 @@ impl MyCache {
 
         Ok(())
     }
-
 }
 pub async fn dump_cache_to_path<P>(
     cache: MyCache,
     meta: SnapshotMeta<TypeConfig>,
     path: P,
     group_id: GroupId,
+    old_map: Arc<DashMap<Arc<Vec<u8>>, MyValue>>,
+    removed_map: Arc<DashMap<Arc<Vec<u8>>, MyValue>>,
+    current_snapshot_num: u32,
 ) -> Result<(), std::io::Error>
 where
     P: AsRef<Path>,
@@ -231,7 +276,9 @@ where
     writer.write_u64(result.len() as u64).await?;
     writer.write_all(&result).await?;
 
-    cache.dump_cache_to_writer(&mut writer).await?;
+    cache
+        .dump_cache_to_writer(&mut writer, old_map, removed_map, current_snapshot_num)
+        .await?;
     writer.flush().await?;
     writer.get_ref().sync_all().await?;
 
@@ -329,7 +376,6 @@ impl Serialize for MyCache {
     }
 }
 
-
 #[tokio::test]
 async fn test_dump_and_load_with_data() {
     let cache = MyCache::new();
@@ -337,30 +383,38 @@ async fn test_dump_and_load_with_data() {
     // 插入测试数据
     let key1 = Arc::new(b"key1".to_vec());
     let value1 = MyValue {
-        is_snapshot: false,
+        snapshot_num: 0,
         data: Arc::new(b"value1".to_vec()),
         ttl_ms: 1000,
     };
 
     let key2 = Arc::new(b"key2".to_vec());
     let value2 = MyValue {
-        is_snapshot: true,
+        snapshot_num: 0,
         data: Arc::new(b"value2".to_vec()),
         ttl_ms: 0, // 永不过期
     };
 
     cache.insert(key1.clone(), value1.clone()).await;
     cache.insert(key2.clone(), value2.clone()).await;
-    cache.append(key2.clone(), value2.clone().data).await;
+    cache.append(key2.clone(), value2.clone().data, 0).await;
 
     let path = create_temp_dir().unwrap().join("snapshot.bin");
     // 转储到临时文件
     // let temp_file = NamedTempFile::new().unwrap();
     // let path = temp_file.path();
 
-    dump_cache_to_path(cache.clone(), Default::default(), path.clone(), 1)
-        .await
-        .expect("dump cache should succeed");
+    dump_cache_to_path(
+        cache.clone(),
+        Default::default(),
+        path.clone(),
+        1,
+        Default::default(),
+        Default::default(),
+        0,
+    )
+    .await
+    .expect("dump cache should succeed");
 
     // 创建新缓存并加载数据
     let new_cache = MyCache::new();

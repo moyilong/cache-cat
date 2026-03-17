@@ -1,7 +1,10 @@
 use crate::network::model::{Request, Response};
 use crate::network::node::{GroupId, TypeConfig};
+use crate::server::client::file_client::FileOperator;
+use crate::server::core::config::get_snapshot_file_name;
 use crate::server::core::moka::{MyCache, MyValue, dump_cache_to_path, load_cache_from_path};
 use crate::server::handler::model::SetRes;
+use dashmap::DashMap;
 use futures::Stream;
 use futures::TryStreamExt;
 use openraft::storage::EntryResponder;
@@ -9,17 +12,13 @@ use openraft::storage::RaftStateMachine;
 use openraft::{EntryPayload, LogId, SnapshotMeta};
 use openraft::{OptionalSend, Snapshot, StoredMembership};
 use openraft::{RaftSnapshotBuilder, RaftTypeConfig};
-
-use crate::server::client::file_client::FileOperator;
-use crate::server::core::config::get_snapshot_file_name;
-use serde::Deserialize;
-use serde::Serialize;
 use std::collections::HashMap;
 use std::io;
-use std::io::Cursor;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
-use std::sync::atomic::{AtomicU8, Ordering};
+use std::thread::sleep;
+use std::time::Instant;
+use tokio::sync::Mutex;
 
 pub struct FileStore {
     pub path: String,
@@ -32,8 +31,18 @@ impl Drop for FileStore {
         }
     }
 }
+#[derive(Debug, Clone)]
+pub struct RaftMetaData {
+    //快照状态 0:未开始 1:开始 2: 收尾中 同时最多只能存在一个快照
+    pub snapshot_state: u8,
 
+    // 快照编号 每次进行一次快照就自增
+    pub snapshot_num: u32,
 
+    pub last_applied_log_id: Option<LogId<TypeConfig>>,
+
+    pub last_membership: StoredMembership<TypeConfig>,
+}
 
 #[derive(Debug, Clone)]
 pub struct StateMachineStore {
@@ -46,41 +55,53 @@ pub struct StateMachineStore {
 
 #[derive(Debug, Clone)]
 pub struct StateMachineData {
-
-
-    pub last_applied_log_id: Option<LogId<TypeConfig>>,
-
-    pub last_membership: StoredMembership<TypeConfig>,
-
     /// State built from applying the raft logs
     pub kvs: MyCache,
+    pub old_kvs: Arc<DashMap<Arc<Vec<u8>>, MyValue>>,
+    pub removed_kvs: Arc<DashMap<Arc<Vec<u8>>, MyValue>>,
 
-    pub diff_map: Arc<HashMap<Arc<Vec<u8>>, MyValue>>,
-    pub snapshot_state: Arc<AtomicU8>,
+    // 只有俩个任务会获取这个锁，快照和raft主任务。它们都是单线程的。
+    raft_meta_data: Arc<Mutex<RaftMetaData>>,
 }
 
 impl RaftSnapshotBuilder<TypeConfig> for StateMachineStore {
     //这里是clone了一个self 然后调用build_snapshot
     async fn build_snapshot(&mut self) -> Result<Snapshot<TypeConfig>, io::Error> {
-        //将快照标记为开始,为了避免重排序，读取需要用Acquire
-        self.data.snapshot_state.store(1, Ordering::Release);
-        let last_applied_log = self.data.last_applied_log_id;
-        let last_membership = self.data.last_membership.clone();
-
+        let mut raft_meta = self.data.raft_meta_data.lock().await;
+        if raft_meta.snapshot_state != 0 {
+            // 经过测试，openraft保证build_snapshot在每个组中最多同时存在一个，理论上这里永远不会输出
+            tracing::error!("Unexpected errors, repeated snapshots!")
+        }
+        let last_applied_log = raft_meta.last_applied_log_id;
+        let last_membership = raft_meta.last_membership.clone();
         let snapshot_id = if let Some(last) = last_applied_log {
             format!("{}-{}", last.committed_leader_id(), last.index(),)
         } else {
             String::from("--")
         };
-
         let meta = SnapshotMeta {
             last_log_id: last_applied_log,
             last_membership,
             snapshot_id,
         };
-
+        //开始快照并让快照版本+1
+        raft_meta.snapshot_num += 1;
+        raft_meta.snapshot_state = 1;
+        let snapshot_num = raft_meta.snapshot_num;
+        drop(raft_meta);
+        // tokio::time::sleep(std::time::Duration::from_hours(100)).await;
+        //快照开始 此时快照线程和raft线程同时执行 快照线程只会读取数据
         let cache = self.data.kvs.clone();
-        dump_cache_to_path(cache, meta.clone(), &self.path, self.group_id).await?;
+        dump_cache_to_path(
+            cache,
+            meta.clone(),
+            &self.path,
+            self.group_id,
+            self.data.old_kvs.clone(),
+            self.data.removed_kvs.clone(),
+            snapshot_num,
+        )
+        .await?;
         //创建快照的硬链接
         //理论上这里读取的快照可能不是这里dump的快照了，因此这里返回的metadata需要重新load
         let file = FileOperator::new(self.group_id, &self.path).await?;
@@ -91,6 +112,11 @@ impl RaftSnapshotBuilder<TypeConfig> for StateMachineStore {
             .load_meta_data()
             .await?
             .ok_or(io::Error::new(io::ErrorKind::Other, "meta data is empty"))?;
+        //快照结束
+        let mut raft_meta = self.data.raft_meta_data.lock().await;
+        raft_meta.snapshot_state = 0;
+        self.data.old_kvs = Arc::new(DashMap::new());
+
         Ok(Snapshot {
             meta: meta_data,
             snapshot: file_operator,
@@ -103,11 +129,15 @@ impl StateMachineStore {
         let cache = MyCache::new();
         let sm = Self {
             data: StateMachineData {
-                last_applied_log_id: None,
-                last_membership: Default::default(),
                 kvs: cache.clone(),
-                diff_map: Arc::new(HashMap::new()),
-                snapshot_state: Arc::new(AtomicU8::new(0)),
+                old_kvs: Arc::new(DashMap::new()),
+                removed_kvs: Arc::new(DashMap::new()),
+                raft_meta_data: Arc::new(Mutex::new(RaftMetaData {
+                    snapshot_state: 0,
+                    snapshot_num: 0,
+                    last_applied_log_id: None,
+                    last_membership: Default::default(),
+                })),
             },
             path: path.clone(),
             group_id,
@@ -126,9 +156,10 @@ impl RaftStateMachine<TypeConfig> for StateMachineStore {
     async fn applied_state(
         &mut self,
     ) -> Result<(Option<LogId<TypeConfig>>, StoredMembership<TypeConfig>), io::Error> {
+        let meta_data = self.data.raft_meta_data.lock().await;
         Ok((
-            self.data.last_applied_log_id,
-            self.data.last_membership.clone(),
+            meta_data.last_applied_log_id,
+            meta_data.last_membership.clone(),
         ))
     }
 
@@ -136,13 +167,11 @@ impl RaftStateMachine<TypeConfig> for StateMachineStore {
     where
         Strm: Stream<Item = Result<EntryResponder<TypeConfig>, io::Error>> + Unpin + OptionalSend,
     {
-        use std::time::Instant;
-
+        let mut raft_meta = self.data.raft_meta_data.lock().await;
         let start_time = Instant::now();
         let result = async {
             while let Some((entry, responder)) = entries.try_next().await? {
-                self.data.last_applied_log_id = Some(entry.log_id);
-
+                raft_meta.last_applied_log_id = Some(entry.log_id);
                 let response = match entry.payload {
                     EntryPayload::Blank => Response::none(),
                     EntryPayload::Normal(req) => match req {
@@ -152,17 +181,24 @@ impl RaftStateMachine<TypeConfig> for StateMachineStore {
                             let value = MyValue {
                                 data: Arc::new(set_req.value),
                                 ttl_ms: 0,
-                                is_snapshot: false,
+                                snapshot_num: raft_meta.snapshot_num,
                             };
-                            st.insert(Arc::new(set_req.key), value).await;
-                            // 如果正在快照，写入hashmap
-
-                            //
+                            if raft_meta.snapshot_state == 1 {
+                                st.snapshot_insert(
+                                    Arc::new(set_req.key),
+                                    value,
+                                    raft_meta.snapshot_num,
+                                    self.data.old_kvs.clone(),
+                                )
+                                .await
+                            } else {
+                                st.insert(Arc::new(set_req.key), value).await;
+                            }
                             Response::Set(SetRes {})
                         }
                     },
                     EntryPayload::Membership(mem) => {
-                        self.data.last_membership =
+                        raft_meta.last_membership =
                             StoredMembership::new(Some(entry.log_id.clone()), mem.clone());
                         Response::none()
                     }
@@ -203,7 +239,6 @@ impl RaftStateMachine<TypeConfig> for StateMachineStore {
     }
 
     async fn get_current_snapshot(&mut self) -> Result<Option<Snapshot<TypeConfig>>, io::Error> {
-        // println!("当前快照路径{:?}", self.path);
         let option = FileOperator::new(self.group_id, &self.path).await?;
         match option {
             None => Ok(None),
