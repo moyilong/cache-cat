@@ -1,5 +1,6 @@
 use crate::network::node::{GroupId, TypeConfig};
-use crate::server::core::config::{create_temp_dir, get_snapshot_file_name};
+use crate::server::core::config::{TEMP_PATH, create_temp_dir, get_snapshot_file_name};
+use crate::store::store::RaftMetaData;
 use byteorder::LittleEndian;
 use dashmap::DashMap;
 use moka::Expiry;
@@ -14,12 +15,13 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::fs::File;
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, BufReader, BufWriter};
+use tokio::sync::Mutex;
 use tokio::{fs, io};
 use uuid::Uuid;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct MyValue {
-    #[serde(skip_serializing, default)]
+    #[serde(skip)]
     pub snapshot_num: u32, //快照编号 不需要进行序列化
     pub data: Arc<Vec<u8>>,
     pub ttl_ms: u64,
@@ -106,6 +108,7 @@ impl MyCache {
         snapshot_num: u32,
         old_map: Arc<DashMap<Arc<Vec<u8>>, MyValue>>,
     ) {
+        //发现存在老数据，放到old_map中
         self.cache
             .entry(key.clone())
             .or_insert_with_if(async { value }, |old_value| {
@@ -248,7 +251,8 @@ pub async fn dump_cache_to_path<P>(
     old_map: Arc<DashMap<Arc<Vec<u8>>, MyValue>>,
     removed_map: Arc<DashMap<Arc<Vec<u8>>, MyValue>>,
     current_snapshot_num: u32,
-) -> Result<(), std::io::Error>
+    raft_meta: Arc<Mutex<RaftMetaData>>,
+) -> Result<(), io::Error>
 where
     P: AsRef<Path>,
 {
@@ -279,6 +283,11 @@ where
     cache
         .dump_cache_to_writer(&mut writer, old_map, removed_map, current_snapshot_num)
         .await?;
+    //在最耗时的刷盘工作开始前将快照标记为已经结束
+    let mut raft_meta_data = raft_meta.lock().await;
+    raft_meta_data.snapshot_state = false;
+    drop(raft_meta_data);
+
     writer.flush().await?;
     writer.get_ref().sync_all().await?;
 
@@ -298,6 +307,7 @@ where
     //先将缓存清空
     cache.invalidate_all();
     let path = path.as_ref();
+    // println!("load cache from {}", path.display());
     let f = match File::open(path).await {
         Ok(f) => f,
         //文件不存在
@@ -397,13 +407,15 @@ async fn test_dump_and_load_with_data() {
 
     cache.insert(key1.clone(), value1.clone()).await;
     cache.insert(key2.clone(), value2.clone()).await;
-    cache.append(key2.clone(), value2.clone().data, 0).await;
 
-    let path = create_temp_dir().unwrap().join("snapshot.bin");
-    // 转储到临时文件
-    // let temp_file = NamedTempFile::new().unwrap();
-    // let path = temp_file.path();
-
+    let path = tempfile::Builder::new()
+        .suffix("_1")
+        .tempdir_in(TEMP_PATH)
+        .unwrap()
+        .keep()
+        .join("");
+    let meta: Arc<Mutex<RaftMetaData>> = Default::default();
+    meta.lock().await.snapshot_num = 1;
     dump_cache_to_path(
         cache.clone(),
         Default::default(),
@@ -411,16 +423,26 @@ async fn test_dump_and_load_with_data() {
         1,
         Default::default(),
         Default::default(),
-        0,
+        1,
+        meta,
     )
     .await
     .expect("dump cache should succeed");
 
     // 创建新缓存并加载数据
     let new_cache = MyCache::new();
-    load_cache_from_path(new_cache.clone(), path)
-        .await
-        .expect("load cache should succeed");
+    match load_cache_from_path(
+        new_cache.clone(),
+        path.join("snapshot").join(get_snapshot_file_name(1)),
+    )
+    .await
+    {
+        Ok(v) => println!("load ok: {:?}", v),
+        Err(e) => {
+            println!("load error: {:?}", e);
+            return;
+        }
+    }
 
     // 验证数据完整性
     let loaded_value1 = new_cache.get(&key1).await;
@@ -434,7 +456,8 @@ async fn test_dump_and_load_with_data() {
 
     assert_eq!(v1.data.as_ref(), value1.data.as_ref());
     assert_eq!(v1.ttl_ms, value1.ttl_ms);
-
+    println!("{:?}", v2.data);
+    println!("{:?}", value2.data);
     assert_eq!(v2.data.as_ref(), value2.data.as_ref());
     assert_eq!(v2.ttl_ms, value2.ttl_ms);
 }

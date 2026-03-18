@@ -2,10 +2,19 @@
 
 ## 常见的快照策略
 
-consul，使用go-memdb进行存储，其实现了mvcc机制。zookeeper，将所有操作变成CAS操作，因此后续的请求可以被应用多次，从而达到相同的数据逻辑。
+Consul，使用go-memdb进行存储，其实现了内存mvcc机制。zookeeper，将所有操作变成CAS操作，因此后续的请求可以被应用多次，从而达到相同的数据逻辑。
 
-dragonflydb，通过任期手动标识哪些数据是旧的哪些数据是新的，执行完快照逻辑后手动收集变动部分数据。ETCD，通过存储层的数据库来直接实现MVCC快照。Redis 通过linux下的fork指令（linux的fork会复制整个进程的地址空间，但只复制调用fork的那个线程）。
+Dragonflydb，通过任期手动标识哪些数据是旧的哪些数据是新的，执行完快照逻辑后手动收集变动部分数据。ETCD，通过存储层的数据库（BoltDB）来直接实现MVCC快照。Redis 通过linux下的fork指令（linux的fork会复制整个进程的地址空间，但只复制调用fork的那个线程）。
 
+然而以上数据结构都存在特定的问题。Consul，Zookeeper，ETCD 只支持非常单一且特定的数据结构。
+Kvrocks，pikiwidb，Tendis均采用Rocksdb，使用Rocksdb的MVCC机制来实现快照隔离。
+而Redis的fork存在问题，当快照期间遇到大规模的数据写入时，fork操作会产生大量的内存占用。这是因为fork虽然是COW的，但是每一个值的修改，都会导致完整的内存页进行一次复制（在x64系统下通常是4kb）。并且只要父进程持续写入，就会不停的发生页复制，如果磁盘性能不够强会导致snapshot花费很久时间加剧了页复制的情况。
+此外fork操作还会造成一个短暂的STW停顿，主进程在内核中执行fork的一段时间无法处理对外的客户端请求。生产上为了减小fork的影响，会限制Redis的容量上限。
+
+Dragonflydb避免了fork操作。https://www.dragonflydb.io/docs/managing-dragonfly/snapshotting 。但引入了新的问题，https://github.com/dragonflydb/dragonfly/issues/6578 。
+Dragonflydb为hashmap定制了一个通用的快照策略，因此能兼容Redis的所有数据结构。然而，当map中的一个key的value是一个较大的值时，由于读写操作不能同时访问该key，从而导致对该键值对进行快照会消耗较长的时间。
+试想你将Dragonflydb的List结构用作消息队列。当某个key的value有几十G时，此时进行快照会长时间对该键值对进行占用，写入操作只能在原地等待直到对于该键值对的快照完成。这是由于Dragonflydb目前没有为所有的数据结构提供专属的快照策略导致的。
+仅针对于Hashmap的读写并发结构的设计是相对简单的。但当Hashmap的value为各种不同的如链表，Skiplist等数据结构时，设计的复杂度会变得非常高。
 ## cache-cat快照策略
 
 > remove分为2种情况
@@ -29,20 +38,20 @@ dragonflydb，通过任期手动标识哪些数据是旧的哪些数据是新的
 
 **快照线程**
 
-获取meta_data的锁，如果获取到了就将快照编号自增。并且保存meta_data元数据。释放锁。
+获取meta_data的锁，如果获取到了就将快照编号自增，并将快照标记为开始，并且保存meta_data元数据。释放锁。
 
 迭代读取cache_map所有数据，如果发现读取到了新版本的数据，那么就访问old_map，来获取老的值，如果读取不到就不写入当前值（老值不存在）。
 
-结束时获取meta_data锁，设置快照完成。然后清空old_map（如果锁能获取到，那么就不会产生清空的时候有人写的情况）。
+结束时获取meta_data锁，设置快照完成。释放锁，将数据刷盘面，然后清空old_map和removed_map。
 
 **业务处理线程**：所有的
 
 1. 当有一批新的数据到来，比如key1，key2俩条。通过锁获取meta_data。（一批数据只获取一次锁，等整批数据处理完了然后释放）
-2. 如果当前snapshot_state为false。直接将数据写入cache_map结束。
-3. 如果当前snapshot状态为true：
-   - 当前操作为put：查询现有数据是否存在于cache_map，且是否比当前快照编号小。如果存在且小（代表这个数据是旧的），放到old_map中。然后原地更新到cache_map的值，并将snapshot_state字段更新。
+2. 更新last_applied_log_id
+3. 如果当前snapshot状态为false。直接将数据写入cache_map结束。
+4. 如果当前snapshot状态为true：
+   - 当前操作为put：查询现有数据是否存在于cache_map，且是否比当前快照编号小。如果存在且小（代表这个数据是旧的），放到old_map中。然后原地更新到cache_map的值，设置的snapshot_num必须是当前版本的。
    - 当前操作为remove：查询现有数据是否存在于cache_map，且是否比当前快照编号小。如果存在且小（代表数据是旧的），放到removed_map中。然后原地删除cache_map的值。
-4. 更新last_applied_log_id
 5. 最后释放锁
 
 

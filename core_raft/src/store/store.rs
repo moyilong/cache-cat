@@ -31,10 +31,10 @@ impl Drop for FileStore {
         }
     }
 }
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct RaftMetaData {
-    //快照状态 0:未开始 1:开始 2: 收尾中 同时最多只能存在一个快照
-    pub snapshot_state: u8,
+    //快照状态 true为开始 false为结束
+    pub snapshot_state: bool,
 
     // 快照编号 每次进行一次快照就自增
     pub snapshot_num: u32,
@@ -68,7 +68,7 @@ impl RaftSnapshotBuilder<TypeConfig> for StateMachineStore {
     //这里是clone了一个self 然后调用build_snapshot
     async fn build_snapshot(&mut self) -> Result<Snapshot<TypeConfig>, io::Error> {
         let mut raft_meta = self.data.raft_meta_data.lock().await;
-        if raft_meta.snapshot_state != 0 {
+        if raft_meta.snapshot_state {
             // 经过测试，openraft保证build_snapshot在每个组中最多同时存在一个，理论上这里永远不会输出
             tracing::error!("Unexpected errors, repeated snapshots!")
         }
@@ -86,7 +86,7 @@ impl RaftSnapshotBuilder<TypeConfig> for StateMachineStore {
         };
         //开始快照并让快照版本+1
         raft_meta.snapshot_num += 1;
-        raft_meta.snapshot_state = 1;
+        raft_meta.snapshot_state = true;
         let snapshot_num = raft_meta.snapshot_num;
         drop(raft_meta);
         // tokio::time::sleep(std::time::Duration::from_hours(100)).await;
@@ -100,6 +100,7 @@ impl RaftSnapshotBuilder<TypeConfig> for StateMachineStore {
             self.data.old_kvs.clone(),
             self.data.removed_kvs.clone(),
             snapshot_num,
+            self.data.raft_meta_data.clone(),
         )
         .await?;
         //创建快照的硬链接
@@ -112,10 +113,9 @@ impl RaftSnapshotBuilder<TypeConfig> for StateMachineStore {
             .load_meta_data()
             .await?
             .ok_or(io::Error::new(io::ErrorKind::Other, "meta data is empty"))?;
-        //快照结束
-        let mut raft_meta = self.data.raft_meta_data.lock().await;
-        raft_meta.snapshot_state = 0;
+        //快照结束 清空俩个map
         self.data.old_kvs = Arc::new(DashMap::new());
+        self.data.removed_kvs = Arc::new(DashMap::new());
 
         Ok(Snapshot {
             meta: meta_data,
@@ -133,7 +133,7 @@ impl StateMachineStore {
                 old_kvs: Arc::new(DashMap::new()),
                 removed_kvs: Arc::new(DashMap::new()),
                 raft_meta_data: Arc::new(Mutex::new(RaftMetaData {
-                    snapshot_state: 0,
+                    snapshot_state: false,
                     snapshot_num: 0,
                     last_applied_log_id: None,
                     last_membership: Default::default(),
@@ -144,7 +144,6 @@ impl StateMachineStore {
         };
         let filename = get_snapshot_file_name(group_id);
         load_cache_from_path(cache, path.join("snapshot").join(filename)).await?;
-
         Ok(sm)
     }
 }
@@ -183,7 +182,7 @@ impl RaftStateMachine<TypeConfig> for StateMachineStore {
                                 ttl_ms: 0,
                                 snapshot_num: raft_meta.snapshot_num,
                             };
-                            if raft_meta.snapshot_state == 1 {
+                            if raft_meta.snapshot_state {
                                 st.snapshot_insert(
                                     Arc::new(set_req.key),
                                     value,

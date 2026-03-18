@@ -13,12 +13,12 @@ openraft = { git = "https://github.com/databendlabs/openraft", tag = "v0.10.0-al
 openraft-multi = { git = "https://github.com/databendlabs/openraft", tag = "v0.10.0-alpha.13" }
 futures = "0.3.31"
 tracing = "0.1.44"
-serde = "1.0.228"
+serde = { version = "1.0.228", features = ["derive"] }
 tokio = { version = "1.49.0", features = ["full", "tracing", "rt", "rt-multi-thread", "macros"] }
 tokio-util = { version = "0.7.18", features = ["codec"] }
 bincode2 = "2.0.1"
 bytes = "1.11.0"
-moka = { version = "0.12.12", features = ["sync","future"] }
+moka = { version = "0.12.12", features = ["sync", "future"] }
 async-trait = "0.1.89"
 byteorder = "1.5.0"
 tempfile = "3.24.0"
