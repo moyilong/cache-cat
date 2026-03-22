@@ -2,6 +2,7 @@ use crate::server::handler::model::{SetReq, SetRes};
 use serde::{Deserialize, Serialize};
 use std::fmt;
 use std::hash::{DefaultHasher, Hash, Hasher};
+use std::sync::Arc;
 
 /// A request to the KV store.
 #[derive(Debug, Clone, Serialize, Deserialize, Hash)]
@@ -11,8 +12,8 @@ pub enum Request {
 impl Request {
     pub fn set(key: impl Into<Vec<u8>>, value: impl Into<Vec<u8>>) -> Self {
         Request::Set(SetReq {
-            key: key.into(),
-            value: value.into(),
+            key: Arc::from(key.into()),
+            value: Arc::from(value.into()),
             ex_time: 0,
         })
     }
@@ -29,6 +30,11 @@ impl fmt::Display for Request {
             Request::Set(req) => write!(f, "Set: {}", req),
         }
     }
+}
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AtomicRequest {
+    pub request: Request,
+    pub version: u32,
 }
 
 /// A response from the KV store.

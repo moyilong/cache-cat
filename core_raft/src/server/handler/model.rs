@@ -21,8 +21,8 @@ pub struct PrintTestRes {
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct SetReq {
-    pub key: Vec<u8>,
-    pub value: Vec<u8>,
+    pub key: Arc<Vec<u8>>,
+    pub value: Arc<Vec<u8>>,
     pub ex_time: u64,
 }
 impl fmt::Display for SetReq {

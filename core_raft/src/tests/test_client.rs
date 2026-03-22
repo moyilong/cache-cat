@@ -1,3 +1,4 @@
+use std::sync::Arc;
 use crate::network::model::Request;
 use crate::network::node::TypeConfig;
 use crate::server::client::client::RpcMultiClient;
@@ -28,8 +29,8 @@ async fn test_add() {
             .call(
                 2,
                 Request::Set(SetReq {
-                    key: format!("test_{}", i).into_bytes(),
-                    value: format!("test_value_{}", i).into_bytes(),
+                    key: Arc::from(format!("test_{}", i).into_bytes()),
+                    value: Arc::from(format!("test_value_{}", i).into_bytes()),
                     ex_time: 0,
                 }),
             )

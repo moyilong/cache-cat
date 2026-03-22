@@ -180,8 +180,8 @@ async fn run_engine(
                         .call(
                             2,
                             Request::Set(SetReq {
-                                key: i.to_string().into_bytes(),
-                                value: Vec::from("xxx"),
+                                key: i.to_string().into_bytes().into(),
+                                value: Vec::from("xxx").into(),
                                 ex_time: 0,
                             }),
                         )

@@ -1,10 +1,9 @@
-use crate::network::model::{Request, Response};
+use crate::network::model::{AtomicRequest, Request, Response};
 use crate::network::node::{GroupId, TypeConfig};
 use crate::server::client::file_client::FileOperator;
 use crate::server::core::config::get_snapshot_file_name;
 use crate::server::core::moka::{MyCache, MyValue, dump_cache_to_path, load_cache_from_path};
 use crate::server::handler::model::SetRes;
-use dashmap::DashMap;
 use futures::Stream;
 use futures::TryStreamExt;
 use openraft::storage::EntryResponder;
@@ -12,11 +11,9 @@ use openraft::storage::RaftStateMachine;
 use openraft::{EntryPayload, LogId, SnapshotMeta};
 use openraft::{OptionalSend, Snapshot, StoredMembership};
 use openraft::{RaftSnapshotBuilder, RaftTypeConfig};
-use std::collections::HashMap;
 use std::io;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
-use std::thread::sleep;
 use std::time::Instant;
 use tokio::sync::Mutex;
 
@@ -36,9 +33,6 @@ pub struct RaftMetaData {
     //快照状态 true为开始 false为结束
     pub snapshot_state: bool,
 
-    // 快照编号 每次进行一次快照就自增
-    pub snapshot_num: u32,
-
     pub last_applied_log_id: Option<LogId<TypeConfig>>,
 
     pub last_membership: StoredMembership<TypeConfig>,
@@ -57,8 +51,8 @@ pub struct StateMachineStore {
 pub struct StateMachineData {
     /// State built from applying the raft logs
     pub kvs: MyCache,
-    pub old_kvs: Arc<DashMap<Arc<Vec<u8>>, MyValue>>,
-    pub removed_kvs: Arc<DashMap<Arc<Vec<u8>>, MyValue>>,
+    //增量日志队列
+    pub incremental_operation_queue: Arc<Mutex<Vec<AtomicRequest>>>,
 
     // 只有俩个任务会获取这个锁，快照和raft主任务。它们都是单线程的。
     raft_meta_data: Arc<Mutex<RaftMetaData>>,
@@ -72,35 +66,17 @@ impl RaftSnapshotBuilder<TypeConfig> for StateMachineStore {
             // 经过测试，openraft保证build_snapshot在每个组中最多同时存在一个，理论上这里永远不会输出
             tracing::error!("Unexpected errors, repeated snapshots!")
         }
-        let last_applied_log = raft_meta.last_applied_log_id;
-        let last_membership = raft_meta.last_membership.clone();
-        let snapshot_id = if let Some(last) = last_applied_log {
-            format!("{}-{}", last.committed_leader_id(), last.index(),)
-        } else {
-            String::from("--")
-        };
-        let meta = SnapshotMeta {
-            last_log_id: last_applied_log,
-            last_membership,
-            snapshot_id,
-        };
-        //开始快照并让快照版本+1
-        raft_meta.snapshot_num += 1;
+        //开始快照
         raft_meta.snapshot_state = true;
-        let snapshot_num = raft_meta.snapshot_num;
         drop(raft_meta);
-        // tokio::time::sleep(std::time::Duration::from_hours(100)).await;
         //快照开始 此时快照线程和raft线程同时执行 快照线程只会读取数据
         let cache = self.data.kvs.clone();
         dump_cache_to_path(
             cache,
-            meta.clone(),
             &self.path,
             self.group_id,
-            self.data.old_kvs.clone(),
-            self.data.removed_kvs.clone(),
-            snapshot_num,
             self.data.raft_meta_data.clone(),
+            self.data.incremental_operation_queue.clone(),
         )
         .await?;
         //创建快照的硬链接
@@ -113,9 +89,6 @@ impl RaftSnapshotBuilder<TypeConfig> for StateMachineStore {
             .load_meta_data()
             .await?
             .ok_or(io::Error::new(io::ErrorKind::Other, "meta data is empty"))?;
-        //快照结束 清空俩个map
-        self.data.old_kvs = Arc::new(DashMap::new());
-        self.data.removed_kvs = Arc::new(DashMap::new());
 
         Ok(Snapshot {
             meta: meta_data,
@@ -130,11 +103,9 @@ impl StateMachineStore {
         let sm = Self {
             data: StateMachineData {
                 kvs: cache.clone(),
-                old_kvs: Arc::new(DashMap::new()),
-                removed_kvs: Arc::new(DashMap::new()),
+                incremental_operation_queue: Arc::new(Mutex::new(Vec::new())),
                 raft_meta_data: Arc::new(Mutex::new(RaftMetaData {
                     snapshot_state: false,
-                    snapshot_num: 0,
                     last_applied_log_id: None,
                     last_membership: Default::default(),
                 })),
@@ -167,8 +138,8 @@ impl RaftStateMachine<TypeConfig> for StateMachineStore {
         Strm: Stream<Item = Result<EntryResponder<TypeConfig>, io::Error>> + Unpin + OptionalSend,
     {
         let mut raft_meta = self.data.raft_meta_data.lock().await;
-        let start_time = Instant::now();
-        let result = async {
+        if raft_meta.snapshot_state {
+            let mut operation_queue = self.data.incremental_operation_queue.lock().await;
             while let Some((entry, responder)) = entries.try_next().await? {
                 raft_meta.last_applied_log_id = Some(entry.log_id);
                 let response = match entry.payload {
@@ -177,22 +148,7 @@ impl RaftStateMachine<TypeConfig> for StateMachineStore {
                         Request::Set(set_req) => {
                             // 使用结构体的字段名来访问成员
                             let st = &self.data.kvs;
-                            let value = MyValue {
-                                data: Arc::new(set_req.value),
-                                ttl_ms: 0,
-                                snapshot_num: raft_meta.snapshot_num,
-                            };
-                            if raft_meta.snapshot_state {
-                                st.snapshot_insert(
-                                    Arc::new(set_req.key),
-                                    value,
-                                    raft_meta.snapshot_num,
-                                    self.data.old_kvs.clone(),
-                                )
-                                .await
-                            } else {
-                                st.insert(Arc::new(set_req.key), value).await;
-                            }
+                            st.snapshot_insert(set_req, &mut operation_queue).await;
                             Response::Set(SetRes {})
                         }
                     },
@@ -202,19 +158,36 @@ impl RaftStateMachine<TypeConfig> for StateMachineStore {
                         Response::none()
                     }
                 };
-
                 if let Some(responder) = responder {
                     responder.send(response);
                 }
             }
-            Ok(())
+        } else {
+            while let Some((entry, responder)) = entries.try_next().await? {
+                raft_meta.last_applied_log_id = Some(entry.log_id);
+                let response = match entry.payload {
+                    EntryPayload::Blank => Response::none(),
+                    EntryPayload::Normal(req) => match req {
+                        Request::Set(set_req) => {
+                            // 使用结构体的字段名来访问成员
+                            let st = &self.data.kvs;
+                            st.insert(set_req).await;
+                            Response::Set(SetRes {})
+                        }
+                    },
+                    EntryPayload::Membership(mem) => {
+                        raft_meta.last_membership =
+                            StoredMembership::new(Some(entry.log_id.clone()), mem.clone());
+                        Response::none()
+                    }
+                };
+                if let Some(responder) = responder {
+                    responder.send(response);
+                }
+            }
         }
-        .await;
 
-        let elapsed = start_time.elapsed();
-        tracing::info!("完成执行 apply 操作，耗时: {:?} 微秒", elapsed.as_micros());
-
-        result
+        Ok(())
     }
 
     async fn get_snapshot_builder(&mut self) -> Self::SnapshotBuilder {
