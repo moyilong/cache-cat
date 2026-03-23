@@ -1,6 +1,5 @@
 use crate::network::node::{GroupId, TypeConfig};
 use crate::server::core::config::ONE;
-use crate::server::core::moka::load_meta_from_path;
 use openraft::SnapshotMeta;
 use serde::{Deserialize, Serialize};
 use std::error::Error;
@@ -10,6 +9,7 @@ use tokio::fs::File;
 use tokio::io::{self, AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpStream;
 use uuid::Uuid;
+use crate::store::snapshot_handler::load_meta_from_path;
 
 /// 发送硬链接文件到其他节点的辅助结构体。
 /// - 创建时会产生硬链接（async 构造函数 try_create ）
@@ -46,7 +46,6 @@ impl FileOperator {
                 let hardlink_path = operator.get_hard_link_buf();
                 // 3. 创建硬链接
                 fs::hard_link(snapshot_path, &hardlink_path).await?;
-
                 // 4. 返回构造完成的结构体
                 Ok(Some(operator))
             }

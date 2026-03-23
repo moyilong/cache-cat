@@ -62,13 +62,12 @@ fn multi_raft() -> Result<(), Box<dyn std::error::Error>> {
         .tempdir_in(base)?
         .keep();
 
-    let d2 = tempfile::Builder::new()
-        .suffix("_2")
-        .tempdir_in(base)?
-        .keep();
-
     let d3 = tempfile::Builder::new()
         .suffix("_3")
+        .tempdir_in(base)?
+        .keep();
+    let d2 = tempfile::Builder::new()
+        .suffix("_2")
         .tempdir_in(base)?
         .keep();
     // Setup the logger
@@ -118,6 +117,7 @@ fn multi_raft() -> Result<(), Box<dyn std::error::Error>> {
             .expect("Failed to create Tokio runtime");
         let result = rt.block_on(start_multi_raft_app(1, d1, String::from(ONE)));
     });
+    sleep(Duration::from_secs(1));
 
     let _h3 = thread::spawn(move || {
         let rt = Builder::new_multi_thread()
@@ -128,8 +128,8 @@ fn multi_raft() -> Result<(), Box<dyn std::error::Error>> {
             .expect("Failed to create Tokio runtime");
         let x = rt.block_on(start_multi_raft_app(3, d3, String::from(THREE)));
     });
+    sleep(Duration::from_secs(1));
 
-    // sleep(Duration::from_secs(11));
     let _h2 = thread::spawn(move || {
         let rt = Builder::new_multi_thread()
             .max_blocking_threads(512)

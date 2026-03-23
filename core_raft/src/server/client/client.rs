@@ -71,10 +71,12 @@ impl SlotTable {
 pub struct RpcMultiClient {
     clients: Vec<RpcClient>,
     next_client: AtomicU32,
+    pub addr: String,
 }
 impl Clone for RpcMultiClient {
     fn clone(&self) -> Self {
         Self {
+            addr: self.addr.clone(),
             clients: self.clients.clone(),
             next_client: AtomicU32::new(0),
         }
@@ -82,15 +84,14 @@ impl Clone for RpcMultiClient {
 }
 
 impl RpcMultiClient {
-    pub async fn connect(
-        addr: &str,
-    ) -> Result<Self, Box<dyn Error + Send + Sync>> {
+    pub async fn connect(addr: &str) -> Result<Self, Box<dyn Error + Send + Sync>> {
         let mut clients = Vec::new();
         for _ in 0..TCP_CONNECT_NUM {
             let client = RpcClient::connect(addr).await?;
             clients.push(client);
         }
         Ok(Self {
+            addr: addr.to_string(),
             clients,
             next_client: AtomicU32::new(0),
         })
@@ -105,6 +106,7 @@ impl RpcMultiClient {
             clients.push(client);
         }
         Ok(Self {
+            addr: addr.to_string(),
             clients,
             next_client: AtomicU32::new(0),
         })

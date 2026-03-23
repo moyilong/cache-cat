@@ -12,7 +12,6 @@ use openraft::raft::{
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use std::hash::{DefaultHasher, Hash, Hasher};
-use std::thread::sleep;
 use std::time::Instant;
 
 pub type HandlerEntry = (u32, fn() -> Box<dyn RpcHandler>);

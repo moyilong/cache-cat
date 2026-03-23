@@ -182,7 +182,6 @@ impl GroupRouter<TypeConfig, GroupId> for Router {
             }
             Some(c) => c,
         };
-
         let send_result = tokio::select! {
             _cancel_result = cancel => {
                 //直接return 无需管返回值
@@ -193,7 +192,7 @@ impl GroupRouter<TypeConfig, GroupId> for Router {
                     id:self.node_id ,
                 }));
             }
-            send_result = snapshot.snapshot.send_file(&self.addr) => {
+            send_result = snapshot.snapshot.send_file(&client.addr) => {
                 send_result
             }
         };

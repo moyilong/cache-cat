@@ -1,9 +1,10 @@
 use crate::network::model::{AtomicRequest, Request, Response};
-use crate::network::node::{GroupId, TypeConfig};
+use crate::network::node::{GroupId, NodeId, TypeConfig};
 use crate::server::client::file_client::FileOperator;
 use crate::server::core::config::get_snapshot_file_name;
-use crate::server::core::moka::{MyCache, MyValue, dump_cache_to_path, load_cache_from_path};
+use crate::server::core::moka::{MyCache, MyValue};
 use crate::server::handler::model::SetRes;
+use crate::store::snapshot_handler::{dump_cache_to_path, load_cache_from_path};
 use futures::Stream;
 use futures::TryStreamExt;
 use openraft::storage::EntryResponder;
@@ -44,6 +45,7 @@ pub struct StateMachineStore {
 
     pub path: PathBuf,
 
+    pub node_id: NodeId,
     group_id: GroupId,
 }
 
@@ -98,7 +100,11 @@ impl RaftSnapshotBuilder<TypeConfig> for StateMachineStore {
 }
 
 impl StateMachineStore {
-    pub async fn new(path: PathBuf, group_id: GroupId) -> Result<StateMachineStore, io::Error> {
+    pub async fn new(
+        path: PathBuf,
+        group_id: GroupId,
+        node_id: NodeId,
+    ) -> Result<StateMachineStore, io::Error> {
         let cache = MyCache::new();
         let sm = Self {
             data: StateMachineData {
@@ -110,6 +116,7 @@ impl StateMachineStore {
                     last_membership: Default::default(),
                 })),
             },
+            node_id,
             path: path.clone(),
             group_id,
         };
@@ -205,8 +212,15 @@ impl RaftStateMachine<TypeConfig> for StateMachineStore {
         meta: &SnapshotMeta<TypeConfig>,
         snapshot: <TypeConfig as RaftTypeConfig>::SnapshotData,
     ) -> Result<(), io::Error> {
+        tracing::warn!("node {} snapshot start!!!!", self.node_id);
         let path_buf = snapshot.get_local_hard_link_buf(&self.path);
-        load_cache_from_path(self.data.kvs.clone(), &path_buf).await?;
+        let res = load_cache_from_path(self.data.kvs.clone(), &path_buf).await?;
+        match res {
+            None => {}
+            Some(r) => {
+                println!("res:--------{}", r.1.len())
+            }
+        }
         Ok(())
     }
 
