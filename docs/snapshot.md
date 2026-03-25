@@ -44,13 +44,13 @@ Zookeeper方案缺点(下文方案)
 我们依然要记录last_applied_log_id（快照产生时最后应用的日志id），last_membership（最后的成员配置，raft自用不用管），snapshot_num（快照编号
 u32），snapshot_state（当前快照状态）。这些数据都被一个锁保护统称为meta_data，并且被一个parking_lot::mutex（待讨论）保护起来。
 
-此外每一个value都会在内部维护一个版本号。
+此外每一个value都会在内部维护一个版本号 u32类型。
 **业务线程**
 
 1. 当有一批新的数据到来。通过锁获取meta_data。
 2. 更新last_applied_log_id
 3. 如果当前snapshot状态为false。直接将数据写入cache_map结束。
-4. 如果当前snapshot状态为true：获取原来数据的版本号，如果没有旧的版本号，则版本被视为0。将版本号加1，将数据写入cache_map。最后将老版本号和当前操作写入磁盘。（将所有写入操作变为一个CAS操作）
+4. 如果当前snapshot状态为true：获取原来数据的版本号，如果没有旧的版本号，则版本被视为0。将版本号加1，将数据写入cache_map。最后将老版本号和当前操作写入队列中暂存。（将所有写入操作变为一个CAS操作）
 
 **快照线程**
 

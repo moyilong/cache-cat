@@ -12,11 +12,9 @@ use openraft::storage::RaftStateMachine;
 use openraft::{EntryPayload, LogId, SnapshotMeta};
 use openraft::{OptionalSend, Snapshot, StoredMembership};
 use openraft::{RaftSnapshotBuilder, RaftTypeConfig};
-use std::fs::Metadata;
 use std::io;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
-use std::time::Instant;
 use tokio::sync::Mutex;
 
 pub struct FileStore {

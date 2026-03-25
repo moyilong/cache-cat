@@ -9,5 +9,4 @@
 
 当客户端访问的节点不可用时采用退避策略进行重试。客户端定期向主节点重新拉取集群拓扑结构并缓存在本地1分钟。
 
-Zookeeper的A-linearizability (asynchronous linearizabil
-ity).非常有趣在未来的未来或许会被支持。
+Zookeeper的A-linearizability (asynchronous linearizabil ity).非常有趣在未来的未来或许会被支持。

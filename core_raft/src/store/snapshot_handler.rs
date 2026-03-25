@@ -117,6 +117,7 @@ where
     reader
         .seek(SeekFrom::Current((300 - (4 + meta_len)) as i64))
         .await?;
+    //解压快照数据
     cache.load_cache_from_reader(&mut reader).await?;
     let queue = load_operation_queue_from_reader(&mut reader).await?;
 
