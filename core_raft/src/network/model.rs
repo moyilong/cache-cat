@@ -1,4 +1,4 @@
-use crate::server::handler::model::{SetReq, SetRes};
+use crate::server::handler::model::{LPushReq, LPushRes, SetReq, SetRes};
 use serde::{Deserialize, Serialize};
 use std::fmt;
 use std::hash::{DefaultHasher, Hash, Hasher};
@@ -8,6 +8,7 @@ use std::sync::Arc;
 #[derive(Debug, Clone, Serialize, Deserialize, Hash)]
 pub enum Request {
     Set(SetReq),
+    LPush(LPushReq)
 }
 impl Request {
     pub fn set(key: impl Into<Vec<u8>>, value: impl Into<Vec<u8>>) -> Self {
@@ -28,6 +29,7 @@ impl fmt::Display for Request {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Request::Set(req) => write!(f, "Set: {}", req),
+            Request::LPush(req) => write!(f, "LPush: {}", req),
         }
     }
 }
@@ -41,8 +43,10 @@ pub struct AtomicRequest {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum Response {
     Set(SetRes),
+    LPush(LPushRes),
     Null,
 }
+
 
 impl Response {
     pub fn none() -> Self {

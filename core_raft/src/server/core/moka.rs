@@ -2,13 +2,13 @@ use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet, LinkedList};
 use crate::network::model::{AtomicRequest, Request};
 use crate::network::node::{GroupId, TypeConfig};
 use crate::server::core::config::{TEMP_PATH, create_temp_dir, get_snapshot_file_name};
-use crate::server::handler::model::SetReq;
+use crate::server::handler::model::{LPushReq, SetReq};
 use crate::store::store::RaftMetaData;
 use byteorder::LittleEndian;
 use dashmap::DashMap;
 use moka::Expiry;
 use moka::future::Cache;
-use moka::ops::compute::Op;
+use moka::ops::compute::{CompResult, Op};
 use openraft::SnapshotMeta;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::io::SeekFrom;
@@ -180,11 +180,65 @@ impl MyCache {
     pub fn count(&self) -> u64 {
         self.cache.entry_count()
     }
+    //成功就返回链表长度 失败返回错误内容 不存在就创建一个list
+    pub async fn l_push(&self,l_push: LPushReq) -> Result<u32, String> {
+        let result = self.cache
+            .entry(l_push.key)
+            .and_compute_with(|maybe_entry| {
+                async move {
+                    match maybe_entry {
+                        Some(entry) => {
+                            let mut value = entry.into_value();
+                            match &mut value.data {
+                                Value::List(data) => {
+                                    value.version += 1;
+                                    data.push_front(l_push.value);
+                                    Op::Put(value)
+                                }
+                                _ => {
+                                    Op::Nop
+                                }
+                            }
+                        }
+                        None => {
+                            let value = MyValue {
+                                data: Value::List(LinkedList::from([l_push.value])),
+                                ttl_ms: 0,
+                                version: 0,
+                            };
+                            Op::Put(value)
+                        }
+                    }
+                }
+            }).await;
+        match result {
+            CompResult::Inserted(entry)
+            | CompResult::ReplacedWith(entry)
+            | CompResult::Unchanged(entry) => {
+                match entry.into_value().data {
+                    Value::List(data_arc) => Ok(data_arc.len() as u32),
+                    _ => Err("Key exists but is not a List".to_string()),
+                }
+            }
+            CompResult::StillNone(_) => {
+                // 理论不会发生（因为我们 Put 了）
+                Err("Unexpected: key not found".to_string())
+            }
+            CompResult::Removed(_) => {
+                Err("Unexpected: value removed".to_string())
+            }
+        }
+    }
 
-    pub async fn append(&self, key: Arc<Vec<u8>>, suffix: Arc<Vec<u8>>) {
-        self.cache
+    //如果不是string就报错，如果是string就append，如果没有值就创建一个
+    pub async fn append(
+        &self,
+        key: Arc<Vec<u8>>,
+        suffix: Arc<Vec<u8>>,
+    ) -> Result<u32, String> {
+        let result = self.cache
             .entry(key)
-            .and_compute_with(move |maybe_entry| {
+            .and_compute_with(|maybe_entry| {
                 let suffix = suffix.clone();
                 async move {
                     match maybe_entry {
@@ -192,17 +246,17 @@ impl MyCache {
                             let mut value = entry.into_value();
                             match &mut value.data {
                                 Value::String(data_arc) => {
-                                    // 关键：只在 String 类型下 append
                                     let data = Arc::make_mut(data_arc);
                                     data.extend_from_slice(&suffix);
                                     value.version += 1;
                                     Op::Put(value)
                                 }
-                                // 方案1：保持原值（最安全）
-                                _ => Op::Put(value),
+                                _ => {
+                                    // 这里不能返回 Err，只能 Nop 或 Put
+                                    Op::Nop
+                                }
                             }
                         }
-                        // key 不存在 → 创建 String
                         None => {
                             Op::Put(MyValue {
                                 data: Value::String(suffix.clone()),
@@ -214,6 +268,25 @@ impl MyCache {
                 }
             })
             .await;
+
+        //  在这里统一解析返回值
+        match result {
+            CompResult::Inserted(entry)
+            | CompResult::ReplacedWith(entry)
+            | CompResult::Unchanged(entry) => {
+                match entry.into_value().data {
+                    Value::String(data_arc) => Ok(data_arc.len() as u32),
+                    _ => Err("Key exists but is not a String".to_string()),
+                }
+            }
+            CompResult::StillNone(_) => {
+                // 理论不会发生（因为我们 Put 了）
+                Err("Unexpected: key not found".to_string())
+            }
+            CompResult::Removed(_) => {
+                Err("Unexpected: value removed".to_string())
+            }
+        }
     }
 
     // todo 优化为字节编码
@@ -229,8 +302,8 @@ impl MyCache {
             let val_bytes = bincode2::serialize(&v)
                 .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
             writer.write_u64(key_bytes.len() as u64).await?;
-            writer.write_all(&key_bytes).await?;
-            writer.write_u64(val_bytes.len() as u64).await?;
+            writer.write_all(&key_bytes).await?; 
+            writer.write_u64(val_bytes.len() as u64).await?; 
             writer.write_all(&val_bytes).await?;
         }
 
@@ -294,8 +367,9 @@ pub enum Value{
     Int(i32),
 
     String(Arc<Vec<u8>>),
+    List(LinkedList<Arc<Vec<u8>>>),
+
     ZSet(BTreeMap<Vec<u8>, Vec<u8>>),
-    List(LinkedList<Vec<u8>>),
     Set(HashSet<Vec<u8>>),
     Hash(HashMap<Vec<u8>, Vec<u8>>),
 }

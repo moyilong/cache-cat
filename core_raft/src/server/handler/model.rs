@@ -43,8 +43,35 @@ impl Hash for SetReq {
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
+pub struct LPushReq {
+    pub key: Arc<Vec<u8>>,
+    pub value: Arc<Vec<u8>>,
+}
+impl fmt::Display for LPushReq {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(
+            f,
+            "LPushReq {{ key: {}, value: {} }}",
+            String::from_utf8_lossy(&self.key),
+            String::from_utf8_lossy(&self.value)
+        )
+    }
+}
+impl Hash for LPushReq {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.key.hash(state);
+    }
+}
+
+
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct SetRes {
     
+}
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
+pub struct LPushRes {
+    pub value: Result<u32,String>,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq)]

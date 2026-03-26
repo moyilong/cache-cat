@@ -1,8 +1,8 @@
 use std::sync::Arc;
-use crate::network::model::Request;
+use crate::network::model::{Request, Response};
 use crate::network::node::TypeConfig;
 use crate::server::client::client::RpcMultiClient;
-use crate::server::handler::model::{PrintTestReq, PrintTestRes, SetReq};
+use crate::server::handler::model::{LPushReq, LPushRes, PrintTestReq, PrintTestRes, SetReq, SetRes};
 use openraft::RPCTypes::Vote;
 use openraft::error::Timeout;
 use openraft::raft::ClientWriteResponse;
@@ -25,7 +25,7 @@ async fn test_add() {
     for i in 0..ITERATIONS {
         time::sleep(Duration::from_millis(1)).await;
         let start = Instant::now();
-        let _: ClientWriteResponse<TypeConfig> = client
+        let r:Response = client
             .call(
                 2,
                 Request::Set(SetReq {
@@ -39,6 +39,10 @@ async fn test_add() {
 
         total_write += start.elapsed();
     }
+    let l_push_res:Response=client.call(2,Request::LPush(LPushReq{
+        key: Arc::from(format!("tes1t_{}", 1).into_bytes()),
+        value: Arc::from(format!("test_value_{}", 1).into_bytes()),
+    })).await.expect("write call failed");
 
     let avg_write = total_write / ITERATIONS;
     println!("写入平均耗时: {} 微秒", avg_write.as_micros());

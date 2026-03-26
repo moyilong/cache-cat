@@ -112,7 +112,7 @@ where
             benchmark_requests(apps_for_task).await;
         });
     } else if node_id == 2 {
-        tokio::time::sleep(std::time::Duration::from_secs(10)).await;
+        // tokio::time::sleep(std::time::Duration::from_secs(10)).await;
     } else if node_id == 1 {
         // tokio::time::sleep(std::time::Duration::from_millis(1)).await;
     }

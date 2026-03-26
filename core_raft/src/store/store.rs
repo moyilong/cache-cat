@@ -3,7 +3,7 @@ use crate::network::node::{GroupId, NodeId, TypeConfig};
 use crate::server::client::file_client::FileOperator;
 use crate::server::core::config::get_snapshot_file_name;
 use crate::server::core::moka::{MyCache, MyValue};
-use crate::server::handler::model::SetRes;
+use crate::server::handler::model::{LPushRes, SetRes};
 use crate::store::snapshot_handler::{dump_cache_to_path, load_cache_from_path};
 use futures::Stream;
 use futures::TryStreamExt;
@@ -169,6 +169,11 @@ impl RaftStateMachine<TypeConfig> for StateMachineStore {
                             st.snapshot_set(set_req, &mut operation_queue).await;
                             Response::Set(SetRes {})
                         }
+                        Request::LPush(l_push_req) => {
+                            let st = &self.data.kvs;
+                            let res = st.l_push(l_push_req).await;
+                            Response::LPush(LPushRes{value: res})
+                        }
                     },
                     EntryPayload::Membership(mem) => {
                         raft_meta.last_membership =
@@ -191,6 +196,11 @@ impl RaftStateMachine<TypeConfig> for StateMachineStore {
                             let st = &self.data.kvs;
                             st.set(set_req).await;
                             Response::Set(SetRes {})
+                        }
+                        Request::LPush(l_push_req) => {
+                            let st = &self.data.kvs;
+                            let res = st.l_push(l_push_req).await;
+                            Response::LPush(LPushRes{value: res})
                         }
                     },
                     EntryPayload::Membership(mem) => {
@@ -236,6 +246,9 @@ impl RaftStateMachine<TypeConfig> for StateMachineStore {
                         .kvs
                         .cas_set(set_req, atomic_request.version)
                         .await;
+                }
+                Request::LPush(l_push_req) => {
+                    self.data.kvs.l_push(l_push_req).await;
                 }
             }
         }
