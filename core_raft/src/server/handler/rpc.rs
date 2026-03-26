@@ -55,58 +55,6 @@ pub async fn start_server(app: App, addr: String) -> std::io::Result<()> {
                     }
                 }
             }
-
-            //     // 使用 LengthDelimitedCodec -> 自动处理 4-byte length prefix（frame 中不含 length）
-            //     let codec = LengthDelimitedCodec::new();
-            //     let framed = Framed::new(socket, codec);
-            //     // split 为读写两部分
-            //     let (writer, mut reader) = framed.split();
-            //
-            //     // channel 用于把要写入的 payload（不含长度头）从各处理任务发送到写任务
-            //     let (tx, mut rx) = mpsc::unbounded_channel::<Bytes>();
-            //     let tx_for_handling = tx.clone();
-            //     // 写任务：负责把 payload 通过 framed sink 发送出去（codec 会添加长度头）
-            //     tokio::spawn(async move {
-            //         let mut writer = writer;
-            //         while let Some(payload) = rx.recv().await {
-            //             if let Err(e) = writer.send(payload).await {
-            //                 eprintln!("写入 TCP（sink）失败 ({}): {}", peer_addr, e);
-            //                 break;
-            //             }
-            //         }
-            //         // 当 rx 关闭或发生错误，writer 会被丢弃，连接结束
-            //         tracing::info!("写任务结束: {}", peer_addr);
-            //     });
-            //     while let Some(frame_result) = reader.next().await {
-            //         match frame_result {
-            //             Ok(frame_bytes) => {
-            //                 // frame_bytes 是 BytesMut（不含 length header）。
-            //                 // 克隆 tx 并交给处理任务（保留并发）
-            //                 let tx = tx_for_handling.clone();
-            //                 let app = app.clone();
-            //                 // freeze -> Bytes，避免复制
-            //                 let package = frame_bytes.freeze();
-            //                 tokio::spawn(
-            //                     async move {
-            //                         let start = Instant::now();
-            //                         if let Err(_) = hand(app, tx, package).await {
-            //                             eprintln!("处理请求失败 {}", peer_addr);
-            //                         }
-            //                         tracing::info!("rpc处理用时: {} 微秒", start.elapsed().as_micros());
-            //                     }
-            //                     .instrument(tracing::info_span!(
-            //                         "rpc处理",
-            //                         peer_addr = peer_addr.to_string()
-            //                     )),
-            //                 );
-            //             }
-            //             Err(e) => {
-            //                 eprintln!("读取帧失败 ({}): {}", peer_addr, e);
-            //                 break;
-            //             }
-            //         }
-            //     }
-            //     tracing::info!("读任务结束: {}", peer_addr);
         });
     }
 }

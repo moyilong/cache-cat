@@ -8,7 +8,7 @@ use std::sync::Arc;
 #[derive(Debug, Clone, Serialize, Deserialize, Hash)]
 pub enum Request {
     Set(SetReq),
-    LPush(LPushReq)
+    LPush(LPushReq),
 }
 impl Request {
     pub fn set(key: impl Into<Vec<u8>>, value: impl Into<Vec<u8>>) -> Self {
@@ -42,11 +42,13 @@ pub struct AtomicRequest {
 /// A response from the KV store.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum Response {
-    Set(SetRes),
-    LPush(LPushRes),
+    Success,
+    Integer(i32),
+    Error(String), //错误信息
     Null,
+    BulkString(Option<Vec<u8>>),
+    Array(Option<Vec<Response>>),
 }
-
 
 impl Response {
     pub fn none() -> Self {

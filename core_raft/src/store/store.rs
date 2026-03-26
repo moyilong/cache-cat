@@ -167,12 +167,12 @@ impl RaftStateMachine<TypeConfig> for StateMachineStore {
                             // 使用结构体的字段名来访问成员
                             let st = &self.data.kvs;
                             st.snapshot_set(set_req, &mut operation_queue).await;
-                            Response::Set(SetRes {})
+                            Response::Success
                         }
                         Request::LPush(l_push_req) => {
                             let st = &self.data.kvs;
-                            let res = st.l_push(l_push_req).await;
-                            Response::LPush(LPushRes{value: res})
+                            let res = st.l_push_snapshot(l_push_req, &mut operation_queue).await;
+                            res
                         }
                     },
                     EntryPayload::Membership(mem) => {
@@ -195,12 +195,12 @@ impl RaftStateMachine<TypeConfig> for StateMachineStore {
                             // 使用结构体的字段名来访问成员
                             let st = &self.data.kvs;
                             st.set(set_req).await;
-                            Response::Set(SetRes {})
+                            Response::Success
                         }
                         Request::LPush(l_push_req) => {
                             let st = &self.data.kvs;
                             let res = st.l_push(l_push_req).await;
-                            Response::LPush(LPushRes{value: res})
+                            res
                         }
                     },
                     EntryPayload::Membership(mem) => {
@@ -242,13 +242,13 @@ impl RaftStateMachine<TypeConfig> for StateMachineStore {
         for atomic_request in res.1 {
             match atomic_request.request {
                 Request::Set(set_req) => {
-                    self.data
-                        .kvs
-                        .cas_set(set_req, atomic_request.version)
-                        .await;
+                    self.data.kvs.cas_set(set_req, atomic_request.version).await;
                 }
                 Request::LPush(l_push_req) => {
-                    self.data.kvs.l_push(l_push_req).await;
+                    self.data
+                        .kvs
+                        .l_push_cas(l_push_req, atomic_request.version)
+                        .await;
                 }
             }
         }

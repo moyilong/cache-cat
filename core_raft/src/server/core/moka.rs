@@ -1,5 +1,4 @@
-use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet, LinkedList};
-use crate::network::model::{AtomicRequest, Request};
+use crate::network::model::{AtomicRequest, Request, Response};
 use crate::network::node::{GroupId, TypeConfig};
 use crate::server::core::config::{TEMP_PATH, create_temp_dir, get_snapshot_file_name};
 use crate::server::handler::model::{LPushReq, SetReq};
@@ -11,6 +10,7 @@ use moka::future::Cache;
 use moka::ops::compute::{CompResult, Op};
 use openraft::SnapshotMeta;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet, LinkedList};
 use std::io::SeekFrom;
 use std::mem::size_of;
 use std::option::Option;
@@ -181,62 +181,160 @@ impl MyCache {
         self.cache.entry_count()
     }
     //成功就返回链表长度 失败返回错误内容 不存在就创建一个list
-    pub async fn l_push(&self,l_push: LPushReq) -> Result<u32, String> {
-        let result = self.cache
+    pub async fn l_push(&self, l_push: LPushReq) -> Response {
+        let result = self
+            .cache
             .entry(l_push.key)
-            .and_compute_with(|maybe_entry| {
-                async move {
-                    match maybe_entry {
-                        Some(entry) => {
-                            let mut value = entry.into_value();
-                            match &mut value.data {
-                                Value::List(data) => {
-                                    value.version += 1;
-                                    data.push_front(l_push.value);
-                                    Op::Put(value)
-                                }
-                                _ => {
-                                    Op::Nop
-                                }
+            .and_compute_with(|maybe_entry| async move {
+                match maybe_entry {
+                    Some(entry) => {
+                        let mut value = entry.into_value();
+                        match &mut value.data {
+                            Value::List(data) => {
+                                value.version += 1;
+                                data.push_front(l_push.value);
+                                Op::Put(value)
                             }
-                        }
-                        None => {
-                            let value = MyValue {
-                                data: Value::List(LinkedList::from([l_push.value])),
-                                ttl_ms: 0,
-                                version: 0,
-                            };
-                            Op::Put(value)
+                            _ => Op::Nop,
                         }
                     }
+                    None => {
+                        let value = MyValue {
+                            data: Value::List(LinkedList::from([l_push.value])),
+                            ttl_ms: 0,
+                            version: 0,
+                        };
+                        Op::Put(value)
+                    }
                 }
-            }).await;
+            })
+            .await;
         match result {
             CompResult::Inserted(entry)
             | CompResult::ReplacedWith(entry)
-            | CompResult::Unchanged(entry) => {
-                match entry.into_value().data {
-                    Value::List(data_arc) => Ok(data_arc.len() as u32),
-                    _ => Err("Key exists but is not a List".to_string()),
-                }
-            }
+            | CompResult::Unchanged(entry) => match entry.into_value().data {
+                Value::List(data_arc) => Response::Integer(data_arc.len() as i32),
+                _ => Response::Error("Key exists but is not a List".to_string()),
+            },
             CompResult::StillNone(_) => {
                 // 理论不会发生（因为我们 Put 了）
-                Err("Unexpected: key not found".to_string())
+                Response::Error("Unexpected: key not found".to_string())
             }
-            CompResult::Removed(_) => {
-                Err("Unexpected: value removed".to_string())
+            CompResult::Removed(_) => Response::Error("Unexpected: value removed".to_string()),
+        }
+    }
+
+    //成功就返回链表长度 失败返回错误内容 不存在就创建一个list
+    pub async fn l_push_snapshot(
+        &self,
+        l_push: LPushReq,
+        queue: &mut Vec<AtomicRequest>,
+    ) -> Response {
+        let result = self
+            .cache
+            .entry(l_push.key.clone())
+            .and_compute_with(|maybe_entry| async move {
+                match maybe_entry {
+                    Some(entry) => {
+                        let mut value = entry.into_value();
+                        match &mut value.data {
+                            Value::List(data) => {
+                                queue.push(AtomicRequest {
+                                    version: value.version,
+                                    request: Request::LPush(l_push.clone()),
+                                });
+                                value.version += 1;
+                                data.push_front(l_push.value);
+                                Op::Put(value)
+                            }
+                            _ => Op::Nop,
+                        }
+                    }
+                    None => {
+                        queue.push(AtomicRequest {
+                            version: 1,
+                            request: Request::LPush(l_push.clone()),
+                        });
+                        let value = MyValue {
+                            data: Value::List(LinkedList::from([l_push.value])),
+                            ttl_ms: 0,
+                            version: 1,
+                        };
+                        Op::Put(value)
+                    }
+                }
+            })
+            .await;
+        match result {
+            CompResult::Inserted(entry)
+            | CompResult::ReplacedWith(entry)
+            | CompResult::Unchanged(entry) => match entry.into_value().data {
+                Value::List(data_arc) => Response::Integer(data_arc.len() as i32),
+                _ => Response::Error("Key exists but is not a List".to_string()),
+            },
+            CompResult::StillNone(_) => {
+                // 理论不会发生（因为我们 Put 了）
+                Response::Error("Unexpected: key not found".to_string())
             }
+            CompResult::Removed(_) => Response::Error("Unexpected: value removed".to_string()),
+        }
+    }
+
+    //成功就返回链表长度 失败返回错误内容 不存在就创建一个list
+    pub async fn l_push_cas(&self, l_push: LPushReq, version: u32) -> Response {
+        let result = self
+            .cache
+            .entry(l_push.key.clone())
+            .and_compute_with(|maybe_entry| async move {
+                match maybe_entry {
+                    Some(entry) => {
+                        let mut value = entry.into_value();
+                        match &mut value.data {
+                            Value::List(data) => {
+                                if value.version != version {
+                                    return Op::Nop;
+                                }
+                                value.version += 1;
+                                data.push_front(l_push.value);
+                                Op::Put(value)
+                            }
+                            _ => Op::Nop,
+                        }
+                    }
+                    None => {
+                        if version != 0 {
+                            //理论上不会出现
+                            tracing::error!("CAS failed: operation not found");
+                        }
+                        let value = MyValue {
+                            data: Value::List(LinkedList::from([l_push.value])),
+                            ttl_ms: 0,
+                            version: 1,
+                        };
+                        Op::Put(value)
+                    }
+                }
+            })
+            .await;
+        match result {
+            CompResult::Inserted(entry)
+            | CompResult::ReplacedWith(entry)
+            | CompResult::Unchanged(entry) => match entry.into_value().data {
+                Value::List(data_arc) => Response::Integer(data_arc.len() as i32),
+                _ => Response::Error("Key exists but is not a List".to_string()),
+            },
+            CompResult::StillNone(_) => {
+                // 理论不会发生（因为我们 Put 了）
+                Response::Error("Unexpected: key not found".to_string())
+            }
+            CompResult::Removed(_) => Response::Error("Unexpected: value removed".to_string()),
         }
     }
 
     //如果不是string就报错，如果是string就append，如果没有值就创建一个
-    pub async fn append(
-        &self,
-        key: Arc<Vec<u8>>,
-        suffix: Arc<Vec<u8>>,
-    ) -> Result<u32, String> {
-        let result = self.cache
+    pub async fn append(&self, key: Arc<Vec<u8>>, suffix: Arc<Vec<u8>>) -> Result<u32, String> {
+        let result = self
+            .cache
             .entry(key)
             .and_compute_with(|maybe_entry| {
                 let suffix = suffix.clone();
@@ -257,13 +355,11 @@ impl MyCache {
                                 }
                             }
                         }
-                        None => {
-                            Op::Put(MyValue {
-                                data: Value::String(suffix.clone()),
-                                ttl_ms: 0,
-                                version: 1,
-                            })
-                        }
+                        None => Op::Put(MyValue {
+                            data: Value::String(suffix.clone()),
+                            ttl_ms: 0,
+                            version: 1,
+                        }),
                     }
                 }
             })
@@ -273,19 +369,15 @@ impl MyCache {
         match result {
             CompResult::Inserted(entry)
             | CompResult::ReplacedWith(entry)
-            | CompResult::Unchanged(entry) => {
-                match entry.into_value().data {
-                    Value::String(data_arc) => Ok(data_arc.len() as u32),
-                    _ => Err("Key exists but is not a String".to_string()),
-                }
-            }
+            | CompResult::Unchanged(entry) => match entry.into_value().data {
+                Value::String(data_arc) => Ok(data_arc.len() as u32),
+                _ => Err("Key exists but is not a String".to_string()),
+            },
             CompResult::StillNone(_) => {
                 // 理论不会发生（因为我们 Put 了）
                 Err("Unexpected: key not found".to_string())
             }
-            CompResult::Removed(_) => {
-                Err("Unexpected: value removed".to_string())
-            }
+            CompResult::Removed(_) => Err("Unexpected: value removed".to_string()),
         }
     }
 
@@ -302,8 +394,8 @@ impl MyCache {
             let val_bytes = bincode2::serialize(&v)
                 .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
             writer.write_u64(key_bytes.len() as u64).await?;
-            writer.write_all(&key_bytes).await?; 
-            writer.write_u64(val_bytes.len() as u64).await?; 
+            writer.write_all(&key_bytes).await?;
+            writer.write_u64(val_bytes.len() as u64).await?;
             writer.write_all(&val_bytes).await?;
         }
 
@@ -363,7 +455,7 @@ impl Serialize for MyCache {
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub enum Value{
+pub enum Value {
     Int(i32),
 
     String(Arc<Vec<u8>>),
