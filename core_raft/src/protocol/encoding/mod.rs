@@ -1,8 +1,3 @@
-pub mod command;
-pub mod resp;
-mod connection;
-mod string;
-mod encoding;
 
 /// Current format version for all encoded types (stored in high 4 bits of flags)
 pub const CURRENT_VERSION: u8 = 1;
@@ -13,3 +8,4 @@ pub const TYPE_HASH: u8 = 0x02;
 
 /// Special value indicating no expiration (0 means never expire)
 pub const NO_EXPIRATION: u64 = 0;
+
