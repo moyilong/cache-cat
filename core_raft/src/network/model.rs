@@ -1,3 +1,4 @@
+use crate::protocol::string::set::SetParams;
 use crate::server::handler::model::{LPushReq, LPushRes, SetReq, SetRes};
 use serde::{Deserialize, Serialize};
 use std::fmt;
@@ -9,6 +10,8 @@ use std::sync::Arc;
 pub enum Request {
     Set(SetReq),
     LPush(LPushReq),
+
+    RedisSet(SetParams),
 }
 impl Request {
     pub fn set(key: impl Into<Vec<u8>>, value: impl Into<Vec<u8>>) -> Self {
@@ -30,6 +33,7 @@ impl fmt::Display for Request {
         match self {
             Request::Set(req) => write!(f, "Set: {}", req),
             Request::LPush(req) => write!(f, "LPush: {}", req),
+            Request::RedisSet(req) => write!(f, "RedisSet: {}", req),
         }
     }
 }
@@ -52,7 +56,7 @@ pub enum Value {
     BulkString(Option<Vec<u8>>),
     /// Arrays of other values (can be null)
     Array(Option<Vec<Value>>),
-    Null
+    Null,
 }
 
 impl Value {
@@ -114,8 +118,7 @@ impl Value {
                     item.encode_to(buf);
                 }
             }
-            Value::Null => {
-            }
+            Value::Null => {}
         }
     }
 }

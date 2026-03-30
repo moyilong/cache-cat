@@ -1,10 +1,13 @@
 use crate::network::model::{AtomicRequest, Request, Value};
 use crate::network::node::{GroupId, NodeId, TypeConfig};
+use crate::protocol::NO_EXPIRATION;
+use crate::protocol::string::set::{Expiration, SetMode, SetParams};
 use crate::server::client::file_client::FileOperator;
 use crate::server::core::config::get_snapshot_file_name;
-use crate::server::core::moka::{MyCache, MyValue};
-use crate::server::handler::model::{LPushRes, SetRes};
+use crate::server::core::moka::{MyCache, MyValue, ValueObject};
+use crate::server::handler::model::{LPushRes, SetReq, SetRes};
 use crate::store::snapshot_handler::{dump_cache_to_path, load_cache_from_path};
+use crate::util::now_ms;
 use futures::Stream;
 use futures::TryStreamExt;
 use openraft::storage::EntryResponder;
@@ -174,6 +177,10 @@ impl RaftStateMachine<TypeConfig> for StateMachineStore {
                             let res = st.l_push_snapshot(l_push_req, &mut operation_queue).await;
                             res
                         }
+                        Request::RedisSet(set) => {
+                            let st = &self.data.kvs;
+                            redis_set_hand(st,set).await
+                        }
                     },
                     EntryPayload::Membership(mem) => {
                         raft_meta.last_membership =
@@ -201,6 +208,10 @@ impl RaftStateMachine<TypeConfig> for StateMachineStore {
                             let st = &self.data.kvs;
                             let res = st.l_push(l_push_req).await;
                             res
+                        }
+                        Request::RedisSet(set) => {
+                            let st = &self.data.kvs;
+                            redis_set_hand(st,set).await
                         }
                     },
                     EntryPayload::Membership(mem) => {
@@ -250,6 +261,9 @@ impl RaftStateMachine<TypeConfig> for StateMachineStore {
                         .l_push_cas(l_push_req, atomic_request.version)
                         .await;
                 }
+                Request::RedisSet(set) => {
+                    todo!()
+                }
             }
         }
         self.update_meta_data(res.0).await;
@@ -271,5 +285,97 @@ impl RaftStateMachine<TypeConfig> for StateMachineStore {
                 }))
             }
         }
+    }
+}
+
+pub async fn redis_set_hand(cache: &MyCache, params: SetParams) -> Value {
+    // Get current timestamp once for all expiration calculations
+    let now = now_ms();
+
+    enum ExistingKey {
+        None,               // Key doesn't exist
+        Data(Arc<Vec<u8>>), // Key exists and is a valid string
+        OtherType,          // Key exists but is not a string (Hash, etc.)
+    }
+    let mut existing_key = ExistingKey::None;
+
+    // Calculate expiration timestamp in milliseconds (0 means no expiration)
+    let expires_at = match params.expiration {
+        Some(Expiration::KeepTTL) => {
+            // Read existing value to get its expiration time
+            match cache.cache.get(&params.key).await {
+                None => NO_EXPIRATION,
+                Some(value) => {
+                    let ttl_ms = value.ttl_ms;
+                    existing_key = match value.data {
+                        ValueObject::Int(v) => {
+                            ExistingKey::Data(Arc::from(v.to_string().into_bytes()))
+                        }
+                        ValueObject::String(v) => ExistingKey::Data(v),
+                        _ => ExistingKey::OtherType,
+                    };
+                    ttl_ms
+                }
+            }
+        }
+        Some(exp) => match exp {
+            Expiration::Ex(seconds) => now + seconds * 1000,
+            Expiration::Px(millis) => now + millis,
+            Expiration::ExAt(timestamp) => timestamp * 1000,
+            Expiration::PxAt(timestamp) => timestamp,
+            Expiration::KeepTTL => unreachable!(), // Handled above
+        },
+        None => NO_EXPIRATION, // No expiration
+    };
+    let key_exists = matches!(existing_key, ExistingKey::Data(_) | ExistingKey::OtherType);
+
+    // Apply NX/XX mode logic
+    match params.mode {
+        Some(SetMode::Nx) => {
+            // NX: Only set if key does not exist
+            if key_exists {
+                // Key exists, do not set
+                return if params.get {
+                    // GET with NX: return current value if it's a string, otherwise nil
+                    match existing_key {
+                        ExistingKey::Data(v) => Value::BulkString(Some(v.as_ref().clone())),
+                        _ => Value::BulkString(None), // Other type, return nil
+                    }
+                } else {
+                    // Just return nil (nil bulk string)
+                    Value::BulkString(None)
+                };
+            }
+        }
+        Some(SetMode::Xx) => {
+            // XX: Only set if key exists
+            if !key_exists {
+                // Key does not exist, do not set
+                return if params.get {
+                    // GET with XX: return nil since key doesn't exist
+                    Value::BulkString(None)
+                } else {
+                    Value::BulkString(None)
+                };
+            }
+        }
+        None => {
+            // No mode restriction, always set
+        }
+    }
+    let set = SetReq {
+        key: Arc::from(params.key),
+        value: Arc::from(params.value),
+        ex_time: expires_at,
+    };
+    cache.set(set).await;
+    if params.get {
+        // Store the old value for GET option before we overwrite
+        match existing_key {
+            ExistingKey::Data(v) => Value::BulkString(Some(v.as_ref().clone())),
+            _ => Value::BulkString(None), // Other type, return nil
+        }
+    } else {
+        Value::ok()
     }
 }
