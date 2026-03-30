@@ -4,7 +4,7 @@ use crate::protocol::NO_EXPIRATION;
 use crate::protocol::string::set::{Expiration, SetMode, SetParams};
 use crate::server::client::file_client::FileOperator;
 use crate::server::core::config::get_snapshot_file_name;
-use crate::server::core::moka::{MyCache, MyValue, ValueObject};
+use crate::server::core::moka::{MyCache, MyValue, UpdateType, ValueObject};
 use crate::server::handler::model::{LPushRes, SetReq, SetRes};
 use crate::store::snapshot_handler::{dump_cache_to_path, load_cache_from_path};
 use crate::util::now_ms;
@@ -169,7 +169,8 @@ impl RaftStateMachine<TypeConfig> for StateMachineStore {
                         Request::Set(set_req) => {
                             // 使用结构体的字段名来访问成员
                             let st = &self.data.kvs;
-                            st.snapshot_set(set_req, &mut operation_queue).await;
+                            st.set(set_req, UpdateType::Snapshot(&mut operation_queue))
+                                .await;
                             Value::SimpleString("OK".to_string())
                         }
                         Request::LPush(l_push_req) => {
@@ -179,7 +180,8 @@ impl RaftStateMachine<TypeConfig> for StateMachineStore {
                         }
                         Request::RedisSet(set) => {
                             let st = &self.data.kvs;
-                            redis_set_hand(st,set).await
+                            redis_set_hand(st, set, UpdateType::Snapshot(&mut operation_queue))
+                                .await
                         }
                     },
                     EntryPayload::Membership(mem) => {
@@ -201,7 +203,7 @@ impl RaftStateMachine<TypeConfig> for StateMachineStore {
                         Request::Set(set_req) => {
                             // 使用结构体的字段名来访问成员
                             let st = &self.data.kvs;
-                            st.set(set_req).await;
+                            st.set(set_req, UpdateType::None).await;
                             Value::SimpleString("OK".to_string())
                         }
                         Request::LPush(l_push_req) => {
@@ -211,7 +213,7 @@ impl RaftStateMachine<TypeConfig> for StateMachineStore {
                         }
                         Request::RedisSet(set) => {
                             let st = &self.data.kvs;
-                            redis_set_hand(st,set).await
+                            redis_set_hand(st, set, UpdateType::None).await
                         }
                     },
                     EntryPayload::Membership(mem) => {
@@ -253,7 +255,10 @@ impl RaftStateMachine<TypeConfig> for StateMachineStore {
         for atomic_request in res.1 {
             match atomic_request.request {
                 Request::Set(set_req) => {
-                    self.data.kvs.cas_set(set_req, atomic_request.version).await;
+                    self.data
+                        .kvs
+                        .set(set_req, UpdateType::CAS(atomic_request.version))
+                        .await;
                 }
                 Request::LPush(l_push_req) => {
                     self.data
@@ -288,7 +293,11 @@ impl RaftStateMachine<TypeConfig> for StateMachineStore {
     }
 }
 
-pub async fn redis_set_hand(cache: &MyCache, params: SetParams) -> Value {
+pub async fn redis_set_hand(
+    cache: &MyCache,
+    params: SetParams,
+    update_type: UpdateType<'_>,
+) -> Value {
     // Get current timestamp once for all expiration calculations
     let now = now_ms();
 
@@ -368,7 +377,7 @@ pub async fn redis_set_hand(cache: &MyCache, params: SetParams) -> Value {
         value: Arc::from(params.value),
         ex_time: expires_at,
     };
-    cache.set(set).await;
+    cache.set(set, update_type).await;
     if params.get {
         // Store the old value for GET option before we overwrite
         match existing_key {

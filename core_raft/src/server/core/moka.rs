@@ -89,6 +89,11 @@ pub struct MyCache {
     // 内部 Cache的Clone成本是低廉的
     pub cache: Cache<Arc<Vec<u8>>, MyValue>,
 }
+pub enum UpdateType<'a> {
+    None,
+    Snapshot(&'a mut Vec<AtomicRequest>),
+    CAS(u32),
+}
 
 impl MyCache {
     /// 创建 MyCache 时自动初始化内部 Cache
@@ -100,74 +105,67 @@ impl MyCache {
         Self { cache }
     }
 
-    /// 插入值
-    pub async fn set(&self, set_req: SetReq) {
-        let value = MyValue {
-            data: ValueObject::String(set_req.value.clone()),
-            ttl_ms: set_req.ex_time,
-            version: 0,
-        };
-        self.cache.insert(set_req.key, value).await;
-    }
-    pub async fn snapshot_set(&self, set_req: SetReq, queue: &mut Vec<AtomicRequest>) {
+    pub async fn set(&self, set_req: SetReq, queue: UpdateType<'_>) {
         let mut value = MyValue {
             data: ValueObject::String(set_req.value.clone()),
             ttl_ms: set_req.ex_time,
             version: 0,
         };
-        //发现存在老数据，获取老数据版本
-        self.cache
-            .entry(set_req.key.clone())
-            .and_upsert_with(|old_entry| async move {
-                let old_version = if let Some(entry) = old_entry {
-                    entry.into_value().version + 1
-                } else {
-                    //不存在默认为0
-                    0
-                };
-                value.version = old_version;
-                queue.push(AtomicRequest {
-                    version: value.version,
-                    request: Request::Set(set_req),
-                });
-                value
-            })
-            .await;
-        return;
-    }
-    pub async fn cas_set(&self, set_req: SetReq, version: u32) {
-        let key = set_req.key.clone();
-        // 我们预先准备好要插入的新数据
-        let new_data = ValueObject::String(set_req.value.clone());
-        let ttl = set_req.ex_time;
-        self.cache
-            .entry(key)
-            .and_upsert_with(async move |maybe_entry| {
-                if let Some(entry) = maybe_entry {
-                    let current_val = entry.value();
-                    // 核心逻辑：只有传入的 version 与缓存中的 version 相同时才允许更新
-                    if version == current_val.version {
-                        MyValue {
-                            data: new_data,
-                            ttl_ms: ttl,
-                            version: current_val.version + 1, // 更新版本号
+        match queue {
+            UpdateType::None => {
+                self.cache.insert(set_req.key.clone(), value).await;
+            }
+            UpdateType::Snapshot(queue) => {
+                let key = set_req.key.clone();
+                self.cache
+                    .entry(key)
+                    .and_upsert_with(|old_entry| {
+                        let set_req = set_req.clone();
+                        async move {
+                            let old_version = if let Some(entry) = old_entry {
+                                entry.into_value().version + 1
+                            } else {
+                                0
+                            };
+                            value.version = old_version;
+                            queue.push(AtomicRequest {
+                                version: value.version,
+                                request: Request::Set(set_req),
+                            });
+                            value
                         }
-                    } else {
-                        // 版本不匹配，直接返回旧值（即不更新）
-                        current_val.clone()
-                    }
-                } else {
-                    // 如果缓存里根本没数据：
-                    // 此时你可以根据业务决定：是允许插入（version从0开始），还是报错
-                    MyValue {
-                        data: new_data,
-                        ttl_ms: ttl,
-                        version: 1, // 初始版本
-                    }
-                }
-            })
-            .await;
+                    })
+                    .await;
+            }
+            UpdateType::CAS(version) => {
+                let key = set_req.key.clone();
+                self.cache
+                    .entry(key)
+                    .and_upsert_with(async move |maybe_entry| {
+                        if let Some(entry) = maybe_entry {
+                            let current_val = entry.value();
+                            // 核心逻辑：只有传入的 version 与缓存中的 version 相同时才允许更新
+                            if version == current_val.version {
+                                value
+                            } else {
+                                // 版本不匹配，直接返回旧值（即不更新）
+                                current_val.clone()
+                            }
+                        } else {
+                            let new_data = ValueObject::String(set_req.value.clone());
+                            let ttl = set_req.ex_time;
+                            MyValue {
+                                data: new_data,
+                                ttl_ms: ttl,
+                                version: 1, // 初始版本
+                            }
+                        }
+                    })
+                    .await;
+            }
+        }
     }
+
 
     pub fn invalidate_all(&self) {
         self.cache.invalidate_all();
@@ -225,11 +223,7 @@ impl MyCache {
     }
 
     //成功就返回链表长度 失败返回错误内容 不存在就创建一个list
-    pub async fn l_push_snapshot(
-        &self,
-        l_push: LPushReq,
-        queue: &mut Vec<AtomicRequest>,
-    ) -> Value {
+    pub async fn l_push_snapshot(&self, l_push: LPushReq, queue: &mut Vec<AtomicRequest>) -> Value {
         let result = self
             .cache
             .entry(l_push.key.clone())
