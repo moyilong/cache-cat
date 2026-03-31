@@ -1,11 +1,8 @@
 use crate::network::model::{Request, Value};
-use crate::network::node::{TypeConfig, get_group_by_key};
+use crate::network::node::get_group_by_key;
 use crate::protocol::command::Command;
 use crate::server::handler::rpc::Server;
-use crate::util::now_ms;
 use async_trait::async_trait;
-use openraft::error::{ClientWriteError, RaftError};
-use openraft::raft::ClientWriteResponse;
 use serde::{Deserialize, Serialize};
 use std::fmt::Display;
 use std::hash::{Hash, Hasher};

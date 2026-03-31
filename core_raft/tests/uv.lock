@@ -20,4 +20,4 @@ dependencies = [
 ]
 
 [package.metadata]
-requires-dist = [{ name = "redis", specifier = ">=5.0.0" }]
+requires-dist = [{ name = "redis", specifier = ">=6.0.0" }]

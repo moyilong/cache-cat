@@ -1,10 +1,18 @@
 import redis
+import time
 
 r = redis.Redis(
+    # db=0,
     host='localhost',
     port=6379,
-    db=0,
-    decode_responses=True  # 自动把 bytes 转成 str
+    decode_responses=True
 )
-r.set('name', 'hello')
+
+# 设置 key，1 秒后过期
+r.set('name', 'hello', ex=1)
+r.ping()
+# 等 5 秒
+# time.sleep(5)
+
+# 再获取
 print(r.get('name'))
