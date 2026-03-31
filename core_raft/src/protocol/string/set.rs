@@ -87,9 +87,9 @@ impl SetParams {
             return None;
         }
 
-        let key = match &items[1] {
-            Value::BulkString(Some(data)) => String::from_utf8_lossy(data).to_string(),
-            Value::SimpleString(s) => s.clone(),
+        let key: Vec<u8> = match &items[1] {
+            Value::BulkString(Some(data)) => data.clone(),
+            Value::SimpleString(s) => s.as_bytes().to_vec(),
             _ => return None,
         };
 
