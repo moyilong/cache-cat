@@ -3,10 +3,10 @@
 //! PING [message]
 //! Returns PONG if no argument is provided, otherwise returns the message.
 
-use crate::protocol::command::Command;
-use async_trait::async_trait;
 use crate::network::model::Value;
+use crate::protocol::command::Command;
 use crate::server::handler::rpc::Server;
+use async_trait::async_trait;
 
 /// PING command handler
 pub struct PingCommand;

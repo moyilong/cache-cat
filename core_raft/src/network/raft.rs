@@ -1,16 +1,13 @@
-use crate::network::model::{BaseOperation, Request, Value};
+use crate::network::model::{BaseOperation, Request};
 use crate::network::node::{App, CacheCatApp, NodeId, create_node};
 use crate::protocol::command::CommandFactory;
 use crate::server::core::config::{ONE, THREE, TWO};
 use crate::server::handler::model::SetReq;
-use crate::server::handler::rpc;
 use crate::server::handler::rpc::Server;
-use openraft::{BasicNode, Config};
+use openraft::BasicNode;
 use std::collections::BTreeMap;
 use std::path::Path;
 use std::sync::Arc;
-use tokio::time::sleep;
-use uuid::Uuid;
 
 // pub async fn start_raft_app<P>(node_id: NodeId, dir: P, addr: String) -> std::io::Result<()>
 // where

@@ -1,8 +1,8 @@
 use crate::network::model::Value;
-use crate::network::node::{App, GroupId, get_app, get_group};
+use crate::network::node::{App, GroupId, get_app};
 use crate::protocol::command::CommandFactory;
 use crate::protocol::resp::Parser;
-use crate::server::core::config::{get_snapshot_file_name, init_config};
+use crate::server::core::config::get_snapshot_file_name;
 use crate::server::handler::external_handler::HANDLER_TABLE;
 use bytes::{Buf, BufMut, Bytes, BytesMut};
 use futures::{SinkExt, StreamExt};
@@ -17,7 +17,7 @@ use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::mpsc;
 use tokio::sync::mpsc::UnboundedSender;
 use tokio_util::codec::{Framed, LengthDelimitedCodec};
-use tracing::{error, info, warn};
+use tracing::{debug, error, info, warn};
 use uuid::Uuid;
 
 #[derive(Clone)]
@@ -222,7 +222,7 @@ async fn run_rpc_mode(app: App, socket: tokio::net::TcpStream, peer_addr: std::n
                 break;
             }
         }
-        tracing::info!("写任务结束: {}", peer_addr);
+        debug!("写任务结束: {}", peer_addr);
     });
 
     // 读循环（完全复用）
@@ -238,7 +238,7 @@ async fn run_rpc_mode(app: App, socket: tokio::net::TcpStream, peer_addr: std::n
                     if let Err(_) = hand(app, tx, package).await {
                         eprintln!("处理请求失败 {}", peer_addr);
                     }
-                    tracing::info!("rpc处理用时: {} 微秒", start.elapsed().as_micros());
+                    debug!("rpc处理用时: {} 微秒", start.elapsed().as_micros());
                 });
             }
             Err(e) => {
@@ -248,7 +248,7 @@ async fn run_rpc_mode(app: App, socket: tokio::net::TcpStream, peer_addr: std::n
         }
     }
 
-    tracing::info!("RPC读任务结束: {}", peer_addr);
+    debug!("RPC读任务结束: {}", peer_addr);
 }
 
 /// hand 函数现在期望接收到的 `package` 已经是不带长度头的一帧数据（即：request_id(4) + func_id(4) + body）

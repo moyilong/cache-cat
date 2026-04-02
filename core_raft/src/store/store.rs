@@ -4,8 +4,8 @@ use crate::protocol::NO_EXPIRATION;
 use crate::protocol::string::set::{Expiration, SetMode, SetParams};
 use crate::server::client::file_client::FileOperator;
 use crate::server::core::config::get_snapshot_file_name;
-use crate::server::core::moka::{MyCache, MyValue, UpdateType, ValueObject};
-use crate::server::handler::model::{LPushRes, SetReq, SetRes};
+use crate::server::core::moka::{MyCache, UpdateType, ValueObject};
+use crate::server::handler::model::SetReq;
 use crate::store::snapshot_handler::{dump_cache_to_path, load_cache_from_path};
 use crate::util::now_ms;
 use futures::Stream;
@@ -256,7 +256,7 @@ impl RaftStateMachine<TypeConfig> for StateMachineStore {
     // Raft协议强制快照文件先持久化到磁盘，然后再应用到状态机。不能实现类似Redis的直接应用到状态机。
     async fn install_snapshot(
         &mut self,
-        meta: &SnapshotMeta<TypeConfig>,
+        _meta: &SnapshotMeta<TypeConfig>,
         snapshot: <TypeConfig as RaftTypeConfig>::SnapshotData,
     ) -> Result<(), io::Error> {
         tracing::warn!("node {} snapshot start!!!!", self.node_id);
@@ -285,7 +285,6 @@ impl RaftStateMachine<TypeConfig> for StateMachineStore {
                         .del(del_req, UpdateType::CAS(atomic_request.version))
                         .await;
                 }
-
             }
         }
         self.update_meta_data(res.0).await;

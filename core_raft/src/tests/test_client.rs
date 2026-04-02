@@ -1,16 +1,3 @@
-use crate::network::model::BaseOperation::LPush;
-use crate::network::model::{BaseOperation, Request, Value};
-use crate::network::node::TypeConfig;
-use crate::server::client::client::RpcMultiClient;
-use crate::server::handler::model::{
-    LPushReq, LPushRes, PrintTestReq, PrintTestRes, SetReq, SetRes,
-};
-use openraft::RPCTypes::Vote;
-use openraft::error::Timeout;
-use openraft::raft::ClientWriteResponse;
-use std::sync::Arc;
-use std::time::{Duration, Instant};
-use tokio::time;
 
 #[tokio::test]
 async fn test_add() {

@@ -1,14 +1,10 @@
-use core_raft::network;
-use core_raft::network::node::TypeConfig;
 use core_raft::network::raft::start_multi_raft_app;
 use core_raft::server::core::config::{ONE, THREE, TWO};
 use mimalloc::MiMalloc;
 use openraft::AsyncRuntime;
-use openraft::alias::AsyncRuntimeOf;
 use std::thread::sleep;
 use std::time::Duration;
 use std::{fs, thread};
-use tempfile::TempDir;
 use tokio::runtime::Builder;
 #[cfg(feature = "flamegraph")]
 use tracing_flame::FlushGuard;
@@ -46,7 +42,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     multi_raft()
 }
 fn multi_raft() -> Result<(), Box<dyn std::error::Error>> {
-    let base = "/home/suiyi/cache-cat/tmp";
+    let _base = "/home/suiyi/cache-cat/tmp";
     let base = r"C:/tmp/raft/raft-engine";
     // let base_system = r"C:\zdy\temp\raft-engine";
 
@@ -76,7 +72,7 @@ fn multi_raft() -> Result<(), Box<dyn std::error::Error>> {
         .with_level(true)
         .with_ansi(false)
         .with_env_filter(EnvFilter::from_default_env())
-        .with_max_level(tracing::Level::WARN)
+        .with_max_level(tracing::Level::INFO)
         .init();
     let num_cpus = std::thread::available_parallelism()?.get();
 
@@ -114,7 +110,7 @@ fn multi_raft() -> Result<(), Box<dyn std::error::Error>> {
             .enable_all()
             .build()
             .expect("Failed to create Tokio runtime");
-        let result = rt.block_on(start_multi_raft_app(1, d1, String::from(ONE)));
+        let _result = rt.block_on(start_multi_raft_app(1, d1, String::from(ONE)));
     });
     sleep(Duration::from_secs(1));
 
@@ -125,10 +121,9 @@ fn multi_raft() -> Result<(), Box<dyn std::error::Error>> {
             .enable_all()
             .build()
             .expect("Failed to create Tokio runtime");
-        let x = rt.block_on(start_multi_raft_app(3, d3, String::from(THREE)));
+        let _x = rt.block_on(start_multi_raft_app(3, d3, String::from(THREE)));
     });
     sleep(Duration::from_secs(1));
-
 
     let _h2 = thread::spawn(move || {
         let rt = Builder::new_multi_thread()
@@ -137,7 +132,7 @@ fn multi_raft() -> Result<(), Box<dyn std::error::Error>> {
             .enable_all()
             .build()
             .expect("Failed to create Tokio runtime");
-        let x = rt.block_on(start_multi_raft_app(2, d2, String::from(TWO)));
+        let _x = rt.block_on(start_multi_raft_app(2, d2, String::from(TWO)));
     });
     sleep(Duration::from_secs(40000));
     Ok(())

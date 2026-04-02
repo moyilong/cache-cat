@@ -6,10 +6,9 @@ use crate::store::log_store::LogStore;
 use crate::store::raft_engine::create_raft_engine;
 use crate::store::store::StateMachineStore;
 use openraft::Config;
-use openraft::SnapshotPolicy::LogsSinceLast;
+use openraft::SnapshotPolicy::Never;
 use std::collections::HashMap;
 use std::hash::{DefaultHasher, Hash, Hasher};
-use std::io::Cursor;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
@@ -60,7 +59,7 @@ pub struct Node {
     pub groups: HashMap<GroupId, CacheCatApp>,
 }
 impl Node {
-    pub fn new(node_id: NodeId, addr: String) -> Self {
+    pub fn new(node_id: NodeId, _addr: String) -> Self {
         Self {
             node_id,
             groups: HashMap::new(),
@@ -102,7 +101,7 @@ where
         max_in_snapshot_log_to_keep: 500, //生成快照后要保留的日志数量（以供从节点同步数据）需要大于等于replication_lag_threshold,该参数会影响快照逻辑
         max_append_entries: Some(50),
         max_payload_entries: 50,
-        snapshot_policy: LogsSinceLast(100),
+        snapshot_policy: Never,         //LogsSinceLast(100),
         replication_lag_threshold: 200, //需要大于snapshot_policy
         ..Default::default()
     });

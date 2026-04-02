@@ -1,5 +1,5 @@
 use crate::network::node::{GroupId, NodeId, TypeConfig};
-use crate::server::client::client::{RpcClient, RpcMultiClient};
+use crate::server::client::client::RpcMultiClient;
 use crate::server::handler::model::{AppendEntriesReq, InstallFullSnapshotReq, VoteReq};
 use openraft::error::Timeout;
 use std::collections::HashMap;
@@ -87,7 +87,7 @@ impl GroupRouter<TypeConfig, GroupId> for Router {
     ) -> Result<AppendEntriesResponse<TypeConfig>, RPCError<TypeConfig>> {
         if !rpc.entries.is_empty() {
             let i = rpc.entries.len();
-            tracing::info!("send entries len:{}", i);
+            tracing::debug!("send entries len:{}", i);
         }
 
         let req = AppendEntriesReq {
@@ -98,7 +98,7 @@ impl GroupRouter<TypeConfig, GroupId> for Router {
         // 先 clone，提前释放锁
         let client = match self.nodes.read().get(&target).cloned() {
             None => {
-                tracing::info!(
+                tracing::error!(
                     "node {} not found (target: {})",
                     target as u64,
                     target as u64
