@@ -28,7 +28,7 @@ async fn test_add() {
     for i in 0..ITERATIONS {
         time::sleep(Duration::from_millis(1)).await;
         let start = Instant::now();
-        let r: Value = client
+        let r: ClientWriteResponse<TypeConfig> = client
             .call(
                 2,
                 Request::Base(BaseOperation::Set(SetReq {
@@ -42,7 +42,7 @@ async fn test_add() {
 
         total_write += start.elapsed();
     }
-    let l_push_res: Value = client
+    let l_push_res: ClientWriteResponse<TypeConfig> = client
         .call(
             2,
             Request::Base(LPush(LPushReq {
