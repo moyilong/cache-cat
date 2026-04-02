@@ -49,6 +49,11 @@ pub fn get_group_by_key<'a>(app: &'a App, key: &Vec<u8>) -> &'a CacheCatApp {
     key.hash(&mut hasher);
     get_group(app, hasher.finish())
 }
+pub fn get_group_id_by_key(key: &Vec<u8>) -> GroupId {
+    let mut hasher = DefaultHasher::new();
+    key.hash(&mut hasher);
+    (hasher.finish() % GROUP_NUM as u64) as GroupId
+}
 
 pub struct Node {
     pub node_id: NodeId,

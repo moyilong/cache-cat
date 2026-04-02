@@ -5,6 +5,7 @@ use crate::protocol::string::set::SetCommand;
 use crate::server::handler::rpc::Server;
 use async_trait::async_trait;
 use std::collections::HashMap;
+use crate::protocol::key::del::DelCommand;
 
 #[async_trait]
 pub trait Command: Send + Sync {
@@ -37,6 +38,7 @@ impl CommandFactory {
         // Register connection commands
         factory.register("GET", GetCommand);
         factory.register("SET", SetCommand);
+        factory.register("DEL", DelCommand);
         factory.register("PING", PingCommand);
         factory
     }

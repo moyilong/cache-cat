@@ -13,6 +13,7 @@ r.set('name', 'hello', ex=1)
 r.ping()
 # 等 5 秒
 # time.sleep(5)
-
 # 再获取
+r.delete('name')
+
 print(r.get('name'))
