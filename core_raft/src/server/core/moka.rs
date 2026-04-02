@@ -104,47 +104,54 @@ impl MyCache {
     }
 
     pub async fn del(&self, del_req: DelReq, queue: UpdateType<'_>) -> Value {
-        let key = del_req.key.clone();
+        let keys = (*del_req.keys).clone();
+        let mut deleted = 0;
 
         match queue {
             UpdateType::None => {
-                let existed = self.cache.remove(&key).await;
-                if existed.is_some() {
-                    Value::Integer(1)
-                } else {
-                    Value::Integer(0)
+                for key in keys {
+                    let existed = self.cache.remove(&key).await;
+                    if existed.is_some() {
+                        deleted += 1;
+                    }
                 }
+                Value::Integer(deleted)
             }
 
             UpdateType::Snapshot(queue) => {
-                // 先记录当前版本，再删除
-                let version = if let Some(entry) = self.cache.get(&key).await {
-                    entry.version + 1
-                } else {
-                    0
-                };
+                for key in keys {
+                    // 计算 version
+                    let version = if let Some(entry) = self.cache.get(&key).await {
+                        entry.version + 1
+                    } else {
+                        0
+                    };
 
-                queue.push(AtomicRequest {
-                    version,
-                    request: Request::Del(del_req.clone()),
-                });
+                    queue.push(AtomicRequest {
+                        version,
+                        request: Request::Del(DelReq {
+                            keys: Arc::from(vec![key.clone()]), // 保持单 key 语义
+                        }),
+                    });
 
-                let existed = self.cache.remove(&key).await;
-                if existed.is_some() {
-                    Value::Integer(1)
-                } else {
-                    Value::Integer(0)
+                    let existed = self.cache.remove(&key).await;
+                    if existed.is_some() {
+                        deleted += 1;
+                    }
                 }
+                Value::Integer(deleted)
             }
 
             UpdateType::CAS(version) => {
-                if let Some(entry) = self.cache.get(&key).await {
-                    if entry.version == version {
-                        self.cache.remove(&key).await;
-                        return Value::Integer(1);
+                for key in keys {
+                    if let Some(entry) = self.cache.get(&key).await {
+                        if entry.version == version {
+                            self.cache.remove(&key).await;
+                            deleted += 1;
+                        }
                     }
                 }
-                Value::Integer(0)
+                Value::Integer(deleted)
             }
         }
     }

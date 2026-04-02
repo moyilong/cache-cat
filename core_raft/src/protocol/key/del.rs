@@ -10,11 +10,12 @@
 use crate::network::model::Value;
 use crate::protocol::command::Command;
 use crate::server::handler::rpc::Server;
-use crate::util::now_ms;
 use async_trait::async_trait;
+use serde::{Deserialize, Serialize};
+use std::fmt::{Display, Formatter};
 
 /// DEL command parameters
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct DelParams {
     pub keys: Vec<Vec<u8>>,
 }
@@ -41,6 +42,11 @@ impl DelParams {
         Some(DelParams { keys })
     }
 }
+impl Display for DelParams {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "DelReq {{ keys: {:?} }}", self.keys)
+    }
+}
 
 /// DEL command executor
 pub struct DelCommand;
@@ -56,8 +62,9 @@ impl Command for DelCommand {
         let mut deleted_count = 0i64;
 
         // 计算每一个key的哈希分组，然后将对应的删除命令提交到对应的group
-
-
+        for key in params.keys {
+            
+        }
 
         Value::Integer(deleted_count)
     }
