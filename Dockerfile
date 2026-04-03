@@ -3,7 +3,7 @@ FROM scratch
 ARG ${TARGETPLATFORM}
 ENV TARGETPLATFORM=${TARGETPLATFORM}
 
-COPY target/dist/$TARGETPLATFORM/* /
+COPY target/dist/$TARGETPLATFORM/core_raft /
 
 
 ENTRYPOINT ["/core_raft"]
