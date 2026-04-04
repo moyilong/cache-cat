@@ -1,4 +1,4 @@
-use crate::network::node::{GroupId, TypeConfig};
+use crate::network::raft_type::{GroupId, TypeConfig};
 use crate::store::snapshot_handler::load_meta_from_path;
 use openraft::SnapshotMeta;
 use serde::{Deserialize, Serialize};

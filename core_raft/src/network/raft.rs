@@ -1,5 +1,6 @@
 use crate::network::model::{BaseOperation, Request};
-use crate::network::node::{App, CacheCatApp, NodeId, create_node};
+use crate::network::node::Node;
+use crate::network::raft_type::{App, CacheCatApp, NodeId};
 use crate::protocol::command::CommandFactory;
 use crate::server::core::config::{Config, ONE, THREE, TWO};
 use crate::server::handler::model::SetReq;
@@ -9,48 +10,14 @@ use std::collections::{BTreeMap, HashMap};
 use std::path::Path;
 use std::sync::Arc;
 
-// pub async fn start_raft_app<P>(node_id: NodeId, dir: P, addr: String) -> std::io::Result<()>
+// pub async fn start_multi_raft_app<P>(node_id: NodeId, dir: P, addr: String) -> std::io::Result<()>
 // where
 //     P: AsRef<Path>,
 // {
-//     let config = Arc::new(Config {
-//         heartbeat_interval: 250,
-//         election_timeout_min: 299,
-//         election_timeout_max: 599, // 添加最大选举超时时间
-//         ..Default::default()
-//     });
-//     let path = dir.as_ref().join("raft-engine");
-//
-//     let raft_engine = dir.as_ref().join("raft-engine");
-//     // let rocksdb_path = dir.as_ref().join("rocksdb");
-//     let engine = create_raft_engine(raft_engine.clone());
-//     // let db: Arc<DB> = new_storage(rocksdb_path).await;
-//     let log_store = LogStore::new(0, engine.clone());
-//     let sm_store = StateMachineStore::new(path, 0).await?;
-//     let network = NetworkFactory {};
-//
-//     let raft = openraft::Raft::new(
-//         node_id,
-//         config.clone(),
-//         network,
-//         log_store,
-//         sm_store.clone(),
-//     )
-//     .await
-//     .unwrap();
-//
-//     let app = CacheCatApp {
-//         id: node_id,
-//         addr: addr.clone(),
-//         raft,
-//         group_id: 0,
-//         state_machine: sm_store,
-//         path: dir.as_ref().join(""),
-//     };
-//
-//     // 正确构建集群成员映射
-//     let mut nodes = BTreeMap::new();
-//     if node_id == 3 {
+//     let node = create_node(&addr, node_id, dir).await;
+//     let apps: Vec<Arc<CacheCatApp>> = node.groups.into_values().map(Arc::new).collect();
+//     let mut nodes = HashMap::new();
+//     let redis_addr = if node_id == 3 {
 //         nodes.insert(
 //             1,
 //             BasicNode {
@@ -69,82 +36,44 @@ use std::sync::Arc;
 //                 addr: THREE.to_string(),
 //             },
 //         );
-//         app.raft.initialize(nodes).await.unwrap();
-//     }
-//     // 根据node_id决定完整的集群配置
+//         for app in &apps {
+//             app.raft.initialize(nodes.clone()).await.unwrap();
+//         }
+//         let apps_for_task = apps.clone();
 //
-//     rpc::start_server(App::new(vec![Arc::new(app)]), addr).await
+//         tokio::spawn(async move {
+//             tokio::time::sleep(std::time::Duration::from_secs(3)).await;
+//             benchmark_requests(apps_for_task).await;
+//         });
+//         "127.0.0.1:6379"
+//     } else if node_id == 2 {
+//         // tokio::time::sleep(std::time::Duration::from_secs(10)).await;
+//         "127.0.0.1:6378"
+//     } else {
+//         // tokio::time::sleep(std::time::Duration::from_millis(1)).await;
+//         "127.0.0.1:6377"
+//     };
+//     // Initialize command factory
+//     let cmd_factory = Arc::new(CommandFactory::init());
+//     let server = Server {
+//         app: App::new(apps),
+//         addr,
+//         cmd_factory,
+//         redis_addr: redis_addr.to_string(),
+//     };
+//     let redis_server = server.clone();
+//     tokio::spawn(async move {
+//         Arc::new(redis_server)
+//             .clone()
+//             .start_redis_server()
+//             .await
+//             .expect("Redis : panic message");
+//     });
+//     server.start_server().await?;
+//     Ok(())
 // }
-pub async fn start_multi_raft_app<P>(node_id: NodeId, dir: P, addr: String) -> std::io::Result<()>
-where
-    P: AsRef<Path>,
-{
-    let node = create_node(&addr, node_id, dir).await;
-    let apps: Vec<Arc<CacheCatApp>> = node.groups.into_values().map(Arc::new).collect();
-    let mut nodes = HashMap::new();
-    let redis_addr = if node_id == 3 {
-        nodes.insert(
-            1,
-            BasicNode {
-                addr: ONE.to_string(),
-            },
-        );
-        nodes.insert(
-            2,
-            BasicNode {
-                addr: TWO.to_string(),
-            },
-        );
-        nodes.insert(
-            3,
-            BasicNode {
-                addr: THREE.to_string(),
-            },
-        );
-        for app in &apps {
-            app.raft.initialize(nodes.clone()).await.unwrap();
-        }
-        let apps_for_task = apps.clone();
-
-        tokio::spawn(async move {
-            tokio::time::sleep(std::time::Duration::from_secs(3)).await;
-            benchmark_requests(apps_for_task).await;
-        });
-        "127.0.0.1:6379"
-    } else if node_id == 2 {
-        // tokio::time::sleep(std::time::Duration::from_secs(10)).await;
-        "127.0.0.1:6378"
-    } else {
-        // tokio::time::sleep(std::time::Duration::from_millis(1)).await;
-        "127.0.0.1:6377"
-    };
-    // Initialize command factory
-    let cmd_factory = Arc::new(CommandFactory::init());
-    let server = Server {
-        app: App::new(apps),
-        addr,
-        cmd_factory,
-        redis_addr: redis_addr.to_string(),
-    };
-    let redis_server = server.clone();
-    tokio::spawn(async move {
-        Arc::new(redis_server)
-            .clone()
-            .start_redis_server()
-            .await
-            .expect("Redis : panic message");
-    });
-    server.start_server().await?;
-    Ok(())
-}
 pub async fn start_multi_raft(config: &Config) -> std::io::Result<()> {
-    let node = create_node(
-        &config.raft.address,
-        config.node_id,
-        Path::new(&config.raft.log_path),
-    )
-    .await;
-
+    let node = Node::create_node(config).await;
     let apps: Vec<Arc<CacheCatApp>> = node.groups.into_values().map(Arc::new).collect();
     let mut nodes = BTreeMap::new();
     if config.raft.single {

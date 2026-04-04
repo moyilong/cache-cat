@@ -1,4 +1,4 @@
-use crate::network::node::{GroupId, NodeId};
+use crate::network::raft_type::{GroupId, NodeId};
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::{Path, PathBuf};

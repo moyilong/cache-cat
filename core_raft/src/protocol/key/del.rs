@@ -9,7 +9,7 @@
 
 use crate::network::model::BaseOperation::Del;
 use crate::network::model::{Request, Value};
-use crate::network::node::{get_app, get_group_id_by_key};
+use crate::network::raft_type::{get_app, get_group_id_by_key};
 use crate::protocol::command::Command;
 use crate::server::handler::model::DelReq;
 use crate::server::handler::rpc::Server;

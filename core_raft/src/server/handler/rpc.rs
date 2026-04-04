@@ -1,5 +1,5 @@
 use crate::network::model::Value;
-use crate::network::node::{App, GroupId, get_app};
+use crate::network::raft_type::{App, GroupId, get_app};
 use crate::protocol::command::CommandFactory;
 use crate::protocol::resp::Parser;
 use crate::server::core::config::get_snapshot_file_name;

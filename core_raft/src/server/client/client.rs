@@ -1,4 +1,4 @@
-use crate::network::node::TypeConfig;
+use crate::network::raft_type::TypeConfig;
 use crate::server::core::config::TCP_CONNECT_NUM;
 use bincode2;
 use bytes::{BufMut, Bytes, BytesMut};

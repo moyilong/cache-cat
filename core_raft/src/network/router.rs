@@ -1,4 +1,4 @@
-use crate::network::node::{GroupId, NodeId, TypeConfig};
+use crate::network::raft_type::{GroupId, NodeId, TypeConfig};
 use crate::server::client::client::RpcMultiClient;
 use crate::server::handler::model::{AppendEntriesReq, InstallFullSnapshotReq, VoteReq};
 use openraft::error::Timeout;

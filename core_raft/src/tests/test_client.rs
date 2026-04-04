@@ -1,7 +1,7 @@
 #[cfg(test)]
 mod tests {
     use crate::network::model::{BaseOperation, Request};
-    use crate::network::node::TypeConfig;
+    use crate::network::raft_type::TypeConfig;
     use crate::server::client::client::RpcMultiClient;
     use crate::server::handler::model::{LPushReq, PrintTestReq, PrintTestRes, SetReq};
     use openraft::RPCTypes::Vote;

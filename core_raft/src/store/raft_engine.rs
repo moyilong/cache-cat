@@ -1,4 +1,4 @@
-use crate::network::node::TypeConfig;
+use crate::network::raft_type::TypeConfig;
 use openraft::Entry;
 use raft_engine::{Config, Engine, MessageExt, ReadableSize};
 use serde::{Deserialize, Serialize};

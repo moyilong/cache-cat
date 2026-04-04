@@ -1,4 +1,4 @@
-use crate::network::node::{GroupId, TypeConfig};
+use crate::network::raft_type::{GroupId, TypeConfig};
 use crate::store::raft_engine::MessageExtTyped;
 use meta::StoreMeta;
 use openraft::OptionalSend;

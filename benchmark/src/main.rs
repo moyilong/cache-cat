@@ -1,6 +1,6 @@
 use clap::Parser;
 use core_raft::network::model::{BaseOperation, Request};
-use core_raft::network::node::TypeConfig;
+use core_raft::network::raft_type::TypeConfig;
 use core_raft::server::client::client::RpcMultiClient;
 use core_raft::server::handler::model::{PrintTestReq, PrintTestRes, SetReq};
 use openraft::raft::ClientWriteResponse;

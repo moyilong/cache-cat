@@ -1,4 +1,4 @@
-use crate::network::node::{GroupId, TypeConfig};
+use crate::network::raft_type::{GroupId, TypeConfig};
 use crate::server::client::file_client::FileOperator;
 use openraft::SnapshotMeta;
 use openraft::alias::VoteOf;

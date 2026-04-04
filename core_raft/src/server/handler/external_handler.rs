@@ -1,5 +1,5 @@
 use crate::network::model::Request;
-use crate::network::node::{App, TypeConfig, get_app};
+use crate::network::raft_type::{App, TypeConfig, get_app};
 use crate::server::handler::model::*;
 use async_trait::async_trait;
 use bytes::Bytes;

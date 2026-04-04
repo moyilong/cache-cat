@@ -1,5 +1,5 @@
 use crate::network::model::{AtomicRequest, BaseOperation, Request, Value};
-use crate::network::node::{GroupId, NodeId, TypeConfig};
+use crate::network::raft_type::{GroupId, NodeId, TypeConfig};
 use crate::protocol::NO_EXPIRATION;
 use crate::protocol::string::set::{Expiration, SetMode, SetParams};
 use crate::server::client::file_client::FileOperator;

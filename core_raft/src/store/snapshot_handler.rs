@@ -1,5 +1,5 @@
 use crate::network::model::AtomicRequest;
-use crate::network::node::{GroupId, TypeConfig};
+use crate::network::raft_type::{GroupId, TypeConfig};
 use crate::server::core::config::{get_snapshot_file_name, TEMP_PATH};
 use crate::server::core::moka::{MyCache, MyValue, ValueObject};
 use crate::store::store::RaftMetaData;

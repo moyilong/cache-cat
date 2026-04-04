@@ -1,4 +1,4 @@
-use crate::network::node::GroupId;
+use crate::network::raft_type::GroupId;
 use crate::protocol::string::set::SetParams;
 use crate::server::core::config::GROUP_NUM;
 use crate::server::handler::model::{DelReq, LPushReq, SetReq};
