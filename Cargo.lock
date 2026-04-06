@@ -342,6 +342,33 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1e748733b7cbc798e1434b6ac524f0c1ff2ab456fe201501e6497c8417a4fc33"
 
 [[package]]
+name = "cache_cat"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "bincode2",
+ "bytes",
+ "console-subscriber",
+ "crossbeam-utils",
+ "futures",
+ "mimalloc",
+ "moka",
+ "openraft",
+ "openraft-multi",
+ "parking_lot",
+ "raft-engine",
+ "serde",
+ "tempfile",
+ "tokio",
+ "tokio-util",
+ "toml",
+ "tracing",
+ "tracing-flame",
+ "tracing-subscriber",
+ "uuid",
+]
+
+[[package]]
 name = "cc"
 version = "1.2.57"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -664,10 +691,6 @@ dependencies = [
  "event-listener",
  "pin-project-lite",
 ]
-
-[[package]]
-name = "example"
-version = "0.1.0"
 
 [[package]]
 name = "fail"
