@@ -1,10 +1,13 @@
 use crate::raft::network::external_handler::HANDLER_TABLE;
+use crate::raft::store::snapshot::snapshot_handler::get_snapshot_file_name;
 use crate::raft::types::core::response_value::Value;
 use crate::raft::types::raft_types::{App, GroupId, get_app};
-use crate::raft::store::snapshot::snapshot_handler::get_snapshot_file_name;
 use crate::utils;
+use std::result::Result as StdResult;
+
 use bytes::{Buf, BufMut, Bytes, BytesMut};
 use futures::{SinkExt, StreamExt};
+use std::fmt::Error;
 use std::io::Result as IoResult;
 use std::net::SocketAddr;
 use std::sync::Arc;
@@ -13,62 +16,85 @@ use tokio::fs;
 use tokio::fs::File;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
-use tokio::sync::mpsc;
 use tokio::sync::mpsc::UnboundedSender;
+use tokio::sync::oneshot::Sender;
+use tokio::sync::{mpsc, oneshot};
 use tokio_util::codec::{Framed, LengthDelimitedCodec};
 use tracing::{debug, error, info, warn};
 use uuid::Uuid;
-
-#[derive(Clone)]
 pub struct Server {
     pub(crate) app: App,
     pub addr: String,
-    pub redis_addr: String,
+    pub startup_tx: Sender<StdResult<(), String>>,
 }
 impl Server {
-    pub async fn start_server(self: Self) -> std::io::Result<()> {
+    pub async fn start_server(
+        self: Self,
+        mut shutdown_rx: tokio::sync::broadcast::Receiver<()>,
+    ) -> std::io::Result<()> {
         // 初始化配置（保留原有逻辑）
         // let _ = init_config("./server/config.yml");
         // let config = get_config();
-        let listener = TcpListener::bind(self.addr.clone()).await?;
+        let listener = match TcpListener::bind(self.addr.clone()).await {
+            Ok(l) => l,
+            Err(err) => {
+                let err_msg = format!("Failed to bind gRPC server to {}: {}", self.addr, err);
+                let _ = self.startup_tx.send(Err(err_msg));
+                return Err(err);
+            }
+        };
+        let _ = self.startup_tx.send(Ok(()));
         println!("Listening on: {}", listener.local_addr()?);
         loop {
-            let app = self.app.clone();
-            let (mut socket, peer_addr) = match listener.accept().await {
-                Ok(p) => p,
-                Err(e) => {
-                    eprintln!("接受连接失败: {}", e);
-                    continue;
-                }
-            };
-            // 读循环：从 framed stream 中取出每个帧（frame 是去除 length header 后的 payload）
-            tokio::spawn(async move {
-                // 关闭 Nagle
-                if let Err(e) = socket.set_nodelay(true) {
-                    eprintln!("set_nodelay 失败: {}", e);
-                }
-                println!("接收到来自 {} 的新连接", peer_addr);
-
-                let mut first = [0u8; 1];
-                if let Err(e) = socket.read_exact(&mut first).await {
-                    eprintln!("读取协议字节失败 {}: {}", peer_addr, e);
-                    return;
-                }
-                //建立连接时通过一个字段来标识模式
-                if first[0] == 0 {
-                    run_rpc_mode(app, socket, peer_addr).await;
-                } else {
-                    let result = run_stream_mode(app, socket, peer_addr).await;
-                    match result {
-                        Ok(_) => {}
-                        Err(e) => {
-                            eprintln!("处理连接失败: {}", e);
+            tokio::select! {
+                // 监听连接
+                res = listener.accept() => {
+                    match res {
+                        Ok((socket, peer_addr)) => {
+                            let app = self.app.clone();
+                            tokio::spawn(async move {
+                                if let Err(e) = handle_connection(app, socket, peer_addr).await {
+                                    error!("Error handling connection from {}: {}", peer_addr, e);
+                                }
+                            });
                         }
+                        Err(e) => error!("Accept error: {}", e),
                     }
                 }
-            });
+                // 监听关闭信号
+                _ = shutdown_rx.recv() => {
+                    info!("Server loop stopping...");
+                    break; // 跳出循环，正常结束
+                }
+            }
         }
+        Ok(())
     }
+}
+async fn handle_connection(
+    app: App,
+    mut socket: TcpStream,
+    peer_addr: SocketAddr,
+) -> std::io::Result<()> {
+    if let Err(e) = socket.set_nodelay(true) {
+        warn!("Failed to set TCP_NODELAY for {}: {}", peer_addr, e);
+    }
+
+    debug!("New connection from {}", peer_addr);
+
+    // 读取第一个字节识别模式
+    let mut protocol_byte = [0u8; 1];
+    socket.read_exact(&mut protocol_byte).await?;
+
+    if protocol_byte[0] == 0 {
+        // RPC 模式
+        run_rpc_mode(app, socket, peer_addr).await;
+    } else {
+        // Stream (Snapshot) 模式
+        run_stream_mode(app, socket, peer_addr).await?;
+    }
+
+    Ok(())
 }
 
 async fn run_stream_mode(

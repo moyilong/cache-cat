@@ -3,19 +3,20 @@ use std::net::SocketAddr;
 use serde::Deserialize;
 use serde::Serialize;
 
-use crate::error::{Error, Result};
 use super::default::default_raft_config;
+use crate::error::{Error, Result};
 #[derive(Debug, Deserialize, Serialize, Clone, Default)]
 pub struct Config {
     pub node_id: u64,
 
+    pub redis_address: String,
     #[serde(default = "default_raft_config")]
     pub raft: RaftConfig,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone, Default)]
 pub struct RaftConfig {
-    pub data_path: String,
+    pub log_path: String,
 
     pub address: String,
 

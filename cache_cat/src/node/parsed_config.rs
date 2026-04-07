@@ -1,13 +1,16 @@
 use crate::config::config::Config;
 use crate::error::Result;
 use crate::raft::types::endpoint::Endpoint;
+use crate::raft::types::raft_types::NodeId;
+
 
 pub struct ParsedConfig {
-    pub node_id: u64,
+    pub node_id: NodeId,
 
     pub raft_endpoint: Endpoint,
 
     pub raft_advertise_endpoint: Endpoint,
+
 
     pub raft_single: bool,
 
@@ -24,12 +27,12 @@ impl ParsedConfig {
             Endpoint::new(&config.raft.advertise_host, raft_endpoint.port());
 
         Ok(ParsedConfig {
-            node_id: config.node_id,
+            node_id: config.node_id as NodeId,
             raft_endpoint,
             raft_advertise_endpoint,
             raft_single: config.raft.single,
             raft_join: config.raft.join.clone(),
-            rocksdb_data_path: config.raft.data_path.clone(),
+            rocksdb_data_path: config.raft.log_path.clone(),
         })
     }
 }
