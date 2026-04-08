@@ -1,22 +1,28 @@
 use crate::config::config::Config;
 use crate::error::{Error, Result};
 use crate::node::parsed_config::ParsedConfig;
+use crate::raft::network::client::RpcClient;
 use crate::raft::network::router::{MultiNetworkFactory, Router};
 use crate::raft::network::rpc::Server;
 use crate::raft::store::log_store::LogStore;
 use crate::raft::store::raft_engine::create_raft_engine;
 use crate::raft::store::statemachine::{StateMachineData, StateMachineStore};
+use crate::raft::types::entry::forward::{ForwardRequest, ForwardRequestBody};
+use crate::raft::types::entry::membership::JoinRequest;
 use crate::raft::types::raft_types::{
     App, CacheCatApp, GROUP_NUM, GroupId, Node, NodeId, Raft, TypeConfig,
 };
 use openraft::SnapshotPolicy::Never;
 use openraft::error::{InitializeError, RaftError};
+use openraft::raft::ClientWriteResponse;
 use std::collections::{BTreeMap, HashMap};
 use std::path::{Path, PathBuf};
 use std::result::Result as StdResult;
 use std::sync::{Arc, Mutex};
+use std::time::Duration;
 use tokio::sync::{broadcast, oneshot};
-use tracing::{error, info};
+use tokio::time::sleep;
+use tracing::{debug, error, info};
 
 pub struct RaftNode {
     config: ParsedConfig,
@@ -108,7 +114,73 @@ impl RaftNode {
             info!("'--join' is empty, do not need joining cluster");
             return Ok(());
         }
-        // self.do_join_cluster().await?;
+        self.do_join_cluster().await?;
+        Ok(())
+    }
+    async fn do_join_cluster(&self) -> Result<()> {
+        let config = &self.config;
+        let addrs = &config.raft_join;
+        let mut errors = vec![];
+        let raft_address = config.raft_endpoint.to_string();
+        let raft_advertise_address = config.raft_advertise_endpoint.to_string();
+
+        for addr in addrs {
+            if addr == &raft_address || addr == &raft_advertise_address {
+                debug!("ignore join cluster via self node address {}", addr);
+                continue;
+            }
+            for _i in 0..3 {
+                let result = self.join_via(addr).await;
+                info!("join cluster via {} result: {:?}", addr, result);
+
+                match result {
+                    Ok(x) => return Ok(x),
+                    Err(api_error) => {
+                        let can_retry = api_error.is_retryable();
+
+                        if can_retry {
+                            debug!("try to connect to addr {} again", addr);
+                            sleep(Duration::from_millis(1_000)).await;
+                            continue;
+                        } else {
+                            errors.push(api_error);
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+
+        Err(Error::internal(format!(
+            "fail to join node-{} to cluster via {:?}, errors: {}",
+            self.config.node_id,
+            addrs,
+            errors
+                .into_iter()
+                .map(|e| e.to_string())
+                .collect::<Vec<_>>()
+                .join(", ")
+        )))
+    }
+    async fn join_via(&self, addr: &String) -> Result<()> {
+        let config = &self.config;
+
+        let join_req = JoinRequest {
+            node_id: config.node_id,
+            endpoint: config.raft_endpoint.clone(),
+        };
+        // let req = ForwardRequest {
+        //     forward_to_leader: 1,
+        //     body: ForwardRequestBody::Join(join_req),
+        // };
+        let client = RpcClient::connect(addr)
+            .await
+            .map_err(|e| Error::internal(e.to_string()))?;
+        let res: () = client
+            .call(9, join_req)
+            .await
+            .map_err(|e| Error::internal(e.to_string()))?;
+
         Ok(())
     }
 

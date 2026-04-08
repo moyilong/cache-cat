@@ -7,6 +7,11 @@ use tracing::info;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
+    //设置日志级别
+    tracing_subscriber::fmt()
+        .with_max_level(tracing::Level::INFO)
+        .init();
+
     // Parse command line arguments first to get config path
     let args: Vec<String> = env::args().collect();
     let config_path = if args.len() > 2 && args[1] == "--conf" {

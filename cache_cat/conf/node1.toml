@@ -6,4 +6,4 @@ advertise_host = "localhost"
 single = true
 join = []
 
-log_path = "E:/tmp/raft/cache-cat"
+log_path = "E:/tmp/raft/cache-cat/raft-engine/1"

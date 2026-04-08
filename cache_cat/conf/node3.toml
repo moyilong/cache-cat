@@ -1,0 +1,9 @@
+node_id = 2
+
+[raft]
+address = "127.0.0.1:7003"
+advertise_host = "localhost"
+single = false
+join = ["127.0.0.1:7001"]
+
+log_path = "E:/tmp/raft/cache-cat/raft-engine/3"

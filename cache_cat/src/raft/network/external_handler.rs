@@ -1,6 +1,7 @@
 use crate::raft::network::model::{
     AddNodeReq, AppendEntriesReq, InstallFullSnapshotReq, PrintTestReq, PrintTestRes, VoteReq,
 };
+use crate::raft::types::entry::membership::JoinRequest;
 use crate::raft::types::entry::request::Request;
 use crate::raft::types::raft_types::{App, Node, NodeId, TypeConfig, get_app};
 use async_trait::async_trait;
@@ -148,16 +149,17 @@ async fn install_full_snapshot(
 /// A Learner receives log replication from the leader but does not vote.
 /// This should be done before adding a node as a member into the cluster
 /// (by calling `change-membership`)
-async fn add_node(app: App, req: AddNodeReq) -> Result<(), String> {
+async fn add_node(app: App, req: JoinRequest) -> Result<(), String> {
     for app in app.iter() {
-        let _ = app
-            .raft
-            .add_learner(req.node.node_id, req.node.clone(), true)
-            .await;
+        let node = Node {
+            node_id: req.node_id,
+            endpoint: req.endpoint.clone(),
+        };
+        let _ = app.raft.add_learner(node.node_id, node.clone(), true).await;
         // 使用 AddVoters 而不是传入完整集合
         // 这会自动计算并添加到现有成员中
         let mut map = BTreeMap::new();
-        map.insert(req.node.node_id, req.node.clone());
+        map.insert(node.node_id, node.clone());
         let changes = ChangeMembers::AddVoters(map);
         app.raft
             .change_membership(changes, true)
