@@ -1,5 +1,5 @@
-pub mod node;
 pub mod model;
-pub mod network;
+pub mod raft_type;
 pub mod raft;
 mod router;
+mod node;

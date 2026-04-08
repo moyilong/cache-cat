@@ -1,11 +1,9 @@
-use crate::network::model::{AtomicRequest, Request};
-use crate::network::node::{GroupId, TypeConfig};
-use crate::server::core::config::{TEMP_PATH, get_snapshot_file_name};
+use crate::network::model::AtomicRequest;
+use crate::network::raft_type::{GroupId, TypeConfig};
+use crate::server::core::config::{get_snapshot_file_name, TEMP_PATH};
 use crate::server::core::moka::{MyCache, MyValue, ValueObject};
-use crate::server::handler::model::SetReq;
 use crate::store::store::RaftMetaData;
 use openraft::SnapshotMeta;
-use serde::{Serialize, Serializer};
 use std::io::SeekFrom;
 use std::path::Path;
 use std::sync::Arc;
@@ -169,7 +167,7 @@ where
             .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
         list.push(request);
     }
-    Ok((list))
+    Ok(list )
 }
 
 pub async fn load_meta_from_path<P>(path: P) -> Result<Option<SnapshotMeta<TypeConfig>>, io::Error>

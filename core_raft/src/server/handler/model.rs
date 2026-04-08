@@ -1,11 +1,11 @@
-use crate::network::node::{GroupId, TypeConfig};
+use crate::network::raft_type::{GroupId, TypeConfig};
 use crate::server::client::file_client::FileOperator;
 use openraft::SnapshotMeta;
 use openraft::alias::VoteOf;
 use openraft::raft::{AppendEntriesRequest, VoteRequest};
 use serde::{Deserialize, Serialize};
 use std::fmt;
-use std::hash::{Hash, Hasher};
+use std::hash::Hasher;
 use std::sync::Arc;
 
 #[derive(Serialize, Deserialize, Debug, PartialEq)]

@@ -1,5 +1,5 @@
 use crate::network::model::{Request, Value};
-use crate::network::node::get_group_by_key;
+use crate::network::raft_type::get_group_by_key;
 use crate::protocol::command::Command;
 use crate::server::handler::rpc::Server;
 use async_trait::async_trait;

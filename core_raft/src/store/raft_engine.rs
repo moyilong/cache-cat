@@ -1,9 +1,5 @@
-use crate::network::model::Request;
-use crate::network::node::TypeConfig;
+use crate::network::raft_type::TypeConfig;
 use openraft::Entry;
-use openraft::raft::AppendEntriesRequest;
-use raft_engine::env::DefaultFileSystem;
-use raft_engine::internals::FilePipeLog;
 use raft_engine::{Config, Engine, MessageExt, ReadableSize};
 use serde::{Deserialize, Serialize};
 use std::path::Path;

@@ -1,12 +1,10 @@
-use crate::network::node::GroupId;
-use crate::protocol::key::del::DelParams;
+use crate::network::raft_type::GroupId;
 use crate::protocol::string::set::SetParams;
 use crate::server::core::config::GROUP_NUM;
-use crate::server::handler::model::{DelReq, LPushReq, LPushRes, SetReq, SetRes};
+use crate::server::handler::model::{DelReq, LPushReq, SetReq};
 use serde::{Deserialize, Serialize};
 use std::fmt;
 use std::hash::{DefaultHasher, Hash, Hasher};
-use std::sync::Arc;
 
 /// A request to the KV store.
 #[derive(Debug, Clone, Serialize, Deserialize)]

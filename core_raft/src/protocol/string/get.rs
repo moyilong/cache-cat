@@ -1,12 +1,10 @@
 use crate::network::model::Value;
-use crate::network::node::{TypeConfig, get_group_by_key};
+use crate::network::raft_type::get_group_by_key;
 use crate::protocol::command::Command;
-use crate::server::core::moka::{MyValue, ValueObject};
+use crate::server::core::moka::ValueObject;
 use crate::server::handler::rpc::Server;
 use async_trait::async_trait;
 use openraft::ReadPolicy::LeaseRead;
-use openraft::error::{LinearizableReadError, RaftError};
-use openraft::raft::linearizable_read::Linearizer;
 
 /// Parameters for GET command
 #[derive(Debug, Clone, PartialEq)]

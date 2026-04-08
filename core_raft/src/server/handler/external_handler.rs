@@ -1,16 +1,16 @@
 use crate::network::model::Request;
-use crate::network::node::{App, TypeConfig, get_app};
+use crate::network::raft_type::{App, TypeConfig, get_app};
 use crate::server::handler::model::*;
 use async_trait::async_trait;
 use bytes::Bytes;
 use openraft::Snapshot;
-use openraft::error::{ClientWriteError, Fatal, RPCError, RaftError, RemoteError};
+use openraft::error::RaftError;
 use openraft::raft::{
-    AppendEntriesResponse, ClientWriteResponse, InstallSnapshotRequest, InstallSnapshotResponse,
-    SnapshotResponse, VoteRequest, VoteResponse,
+    AppendEntriesResponse, ClientWriteResponse,
+    SnapshotResponse, VoteResponse,
 };
 use serde::de::DeserializeOwned;
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 use std::hash::{DefaultHasher, Hash, Hasher};
 use std::time::Instant;
 
@@ -87,7 +87,7 @@ async fn write(app: App, req: Request) -> Result<ClientWriteResponse<TypeConfig>
         e.to_string()
     })
 }
-async fn read(app: App, req: String) -> Result<Option<String>, RaftError<TypeConfig>> {
+async fn read(_app: App, _req: String) -> Result<Option<String>, RaftError<TypeConfig>> {
     // let group = get_group(&app, hash_string(&req));
     // let kvs = group.state_machine.data.kvs.lock().await;
     // let value = kvs.get(&req);
@@ -119,7 +119,7 @@ async fn append_entries(
         .map_err(|e| e.to_string());
     let elapsed = start.elapsed();
     if !e {
-        tracing::info!("append 从节点内部处理: {:?} ", elapsed);
+        tracing::debug!("append 从节点内部处理: {:?} ", elapsed);
     }
     res
 }

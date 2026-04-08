@@ -1,6 +1,5 @@
-use crate::network::node::{GroupId, TypeConfig};
+use crate::network::raft_type::{GroupId, TypeConfig};
 use crate::store::raft_engine::MessageExtTyped;
-use lru::LruCache;
 use meta::StoreMeta;
 use openraft::OptionalSend;
 use openraft::RaftLogReader;
@@ -17,11 +16,9 @@ use raft_engine::{Engine, LogBatch};
 use std::fmt::{Debug, Formatter};
 use std::io;
 use std::marker::PhantomData;
-use std::num::NonZeroUsize;
 use std::ops::{Bound, RangeBounds};
 use std::sync::Arc;
 use std::time::Instant;
-use tokio::sync::{Mutex, MutexGuard};
 use tracing::Instrument;
 
 #[derive(Clone)]
@@ -110,7 +107,7 @@ impl RaftLogReader<TypeConfig> for LogStore {
         self.engine
             .fetch_entries_to::<MessageExtTyped>(self.group_id as u64, start, end, None, &mut res)
             .unwrap();
-        tracing::info!("try_get_log_entries cost: {:?}", start_time.elapsed());
+        tracing::debug!("try_get_log_entries cost: {:?}", start_time.elapsed());
         Ok(res)
     }
 
@@ -196,9 +193,9 @@ impl RaftLogStorage<TypeConfig> for LogStore {
             let res = engine.sync().map(|_| ()).map_err(io::Error::other);
             callback.io_completed(res);
             let elapsed = start.elapsed();
-            tracing::info!("raft-engine append elapsed: {:?}", elapsed);
+            tracing::debug!("raft-engine append elapsed: {:?}", elapsed);
         })
-        .instrument(tracing::info_span!("raft-engine-sync"));
+        .instrument(tracing::debug_span!("raft-engine-sync"));
         // Return now, and the callback will be invoked later when IO is done.
         Ok(res)
     }
@@ -206,7 +203,7 @@ impl RaftLogStorage<TypeConfig> for LogStore {
     // 如果follower的日志与leader的日志不匹配，follower会删除冲突的日志
     async fn truncate_after(
         &mut self,
-        last_log_id: Option<LogIdOf<TypeConfig>>,
+        _last_log_id: Option<LogIdOf<TypeConfig>>,
     ) -> Result<(), io::Error> {
         // tracing::info!("truncate_after: ({:?}, +oo)", last_log_id);
 
@@ -216,7 +213,7 @@ impl RaftLogStorage<TypeConfig> for LogStore {
 
     //日志压缩
     async fn purge(&mut self, log_id: LogIdOf<TypeConfig>) -> Result<(), io::Error> {
-        tracing::info!("delete_log: [0, {:?}]", log_id);
+        tracing::debug!("delete_log: [0, {:?}]", log_id);
 
         // 在清理日志前记录最后清理的日志ID。
         // openraft 将忽略最后清理日志ID及之前的所有日志。
