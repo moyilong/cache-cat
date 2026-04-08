@@ -1,19 +1,19 @@
-
+use crate::raft::network::model::{
+    AddNodeReq, AppendEntriesReq, InstallFullSnapshotReq, PrintTestReq, PrintTestRes, VoteReq,
+};
+use crate::raft::types::entry::request::Request;
+use crate::raft::types::raft_types::{App, Node, NodeId, TypeConfig, get_app};
 use async_trait::async_trait;
 use bytes::Bytes;
-use openraft::Snapshot;
+use openraft::async_runtime::WatchReceiver;
 use openraft::error::RaftError;
-use openraft::raft::{
-    AppendEntriesResponse, ClientWriteResponse,
-    SnapshotResponse, VoteResponse,
-};
-use serde::de::DeserializeOwned;
+use openraft::raft::{AppendEntriesResponse, ClientWriteResponse, SnapshotResponse, VoteResponse};
+use openraft::{ChangeMembers, Snapshot};
 use serde::Serialize;
+use serde::de::DeserializeOwned;
+use std::collections::{BTreeMap, BTreeSet};
 use std::hash::{DefaultHasher, Hash, Hasher};
 use std::time::Instant;
-use crate::raft::network::model::{AppendEntriesReq, InstallFullSnapshotReq, PrintTestReq, PrintTestRes, VoteReq};
-use crate::raft::types::entry::request::Request;
-use crate::raft::types::raft_types::{get_app, App, TypeConfig};
 
 pub type HandlerEntry = (u32, fn() -> Box<dyn RpcHandler>);
 
@@ -32,6 +32,7 @@ pub static HANDLER_TABLE: &[HandlerEntry] = &[
             func: install_full_snapshot,
         })
     }),
+    (9, || Box::new(RpcMethod { func: add_node })),
 ];
 fn hash_string(s: &str) -> u64 {
     let mut hasher = DefaultHasher::new();
@@ -140,4 +141,28 @@ async fn install_full_snapshot(
         .install_full_snapshot(req.vote, snapshot)
         .await
         .map_err(|e| e.to_string())
+}
+
+/// Add a node as **Learner**.
+///
+/// A Learner receives log replication from the leader but does not vote.
+/// This should be done before adding a node as a member into the cluster
+/// (by calling `change-membership`)
+async fn add_node(app: App, req: AddNodeReq) -> Result<(), String> {
+    for app in app.iter() {
+        let _ = app
+            .raft
+            .add_learner(req.node.node_id, req.node.clone(), true)
+            .await;
+        // 使用 AddVoters 而不是传入完整集合
+        // 这会自动计算并添加到现有成员中
+        let mut map = BTreeMap::new();
+        map.insert(req.node.node_id, req.node.clone());
+        let changes = ChangeMembers::AddVoters(map);
+        app.raft
+            .change_membership(changes, true)
+            .await
+            .map_err(|e| e.to_string())?;
+    }
+    Ok(())
 }
