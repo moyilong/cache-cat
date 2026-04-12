@@ -145,7 +145,6 @@ pub struct RpcClient {
     slot_table: Arc<SlotTable>,
     next_request_id: Arc<AtomicU32>,
 }
-//todo 重写错误处理
 impl RpcClient {
     pub async fn connect(addr: &str) -> Result<Self, Box<dyn Error + Send + Sync>> {
         let mut stream = TcpStream::connect(addr).await?;

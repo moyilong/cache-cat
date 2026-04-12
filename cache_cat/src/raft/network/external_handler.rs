@@ -98,7 +98,6 @@ async fn read(_app: App, _req: String) -> Result<Option<String>, RaftError<TypeC
     todo!()
 }
 
-//TODO 向上传播错误
 async fn vote(app: App, req: VoteReq) -> Result<VoteResponse<TypeConfig>, String> {
     // openraft 的 vote 是异步的
     let group = get_app(&app, req.group_id);

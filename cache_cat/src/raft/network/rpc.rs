@@ -36,7 +36,7 @@ impl Server {
         let listener = match TcpListener::bind(self.addr.clone()).await {
             Ok(l) => l,
             Err(err) => {
-                let err_msg = format!("Failed to bind gRPC server to {}: {}", self.addr, err);
+                let err_msg = format!("Failed to bind TCP server to {}: {}", self.addr, err);
                 let _ = self.startup_tx.send(Err(err_msg));
                 return Err(err);
             }
