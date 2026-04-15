@@ -21,7 +21,7 @@ pub struct PrintTestRes {
 
 #[derive(Serialize, Deserialize, Debug, PartialEq)]
 pub struct GetReq {
-    pub key: String,
+    pub key: Vec<u8>,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq)]

@@ -1,21 +1,21 @@
 #[cfg(test)]
 mod tests {
 
+    use crate::raft::network::client::RpcMultiClient;
+    use crate::raft::network::model::{GetReq, GetRes, PrintTestReq, PrintTestRes};
+    use crate::raft::types::entry::bae_operation::{BaseOperation, SetReq};
+    use crate::raft::types::entry::request::Request;
+    use crate::raft::types::raft_types::TypeConfig;
     use openraft::RPCTypes::Vote;
     use openraft::error::Timeout;
     use openraft::raft::ClientWriteResponse;
     use std::sync::Arc;
     use std::time::{Duration, Instant};
     use tokio::time;
-    use crate::raft::network::client::RpcMultiClient;
-    use crate::raft::network::model::{PrintTestReq, PrintTestRes};
-    use crate::raft::types::entry::bae_operation::{BaseOperation, SetReq};
-    use crate::raft::types::entry::request::Request;
-    use crate::raft::types::raft_types::TypeConfig;
 
     #[tokio::test]
     async fn test_add() {
-        let client = RpcMultiClient::connect("127.0.0.1:5002")
+        let client = RpcMultiClient::connect("127.0.0.1:5001")
             .await
             .expect("connect failed");
 
@@ -40,6 +40,16 @@ mod tests {
                 )
                 .await
                 .expect("write call failed");
+
+            let r: GetRes = client
+                .call(
+                    3,
+                    GetReq {
+                        key: Vec::from("xxx"),
+                    },
+                )
+                .await
+                .expect("read call failed");
 
             total_write += start.elapsed();
         }

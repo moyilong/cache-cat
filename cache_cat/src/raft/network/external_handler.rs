@@ -1,11 +1,15 @@
 use crate::raft::network::model::{
-    AddNodeReq, AppendEntriesReq, InstallFullSnapshotReq, PrintTestReq, PrintTestRes, VoteReq,
+    AddNodeReq, AppendEntriesReq, GetReq, GetRes, InstallFullSnapshotReq, PrintTestReq,
+    PrintTestRes, VoteReq,
 };
+use crate::raft::types::core::moka::MyValue;
+use crate::raft::types::core::value_object::ValueObject;
 use crate::raft::types::entry::membership::JoinRequest;
 use crate::raft::types::entry::request::Request;
-use crate::raft::types::raft_types::{App, Node, NodeId, TypeConfig, get_app};
+use crate::raft::types::raft_types::{App, Node, NodeId, TypeConfig, get_app, get_group_by_key};
 use async_trait::async_trait;
 use bytes::Bytes;
+use openraft::ReadPolicy::LeaseRead;
 use openraft::async_runtime::WatchReceiver;
 use openraft::error::RaftError;
 use openraft::raft::{AppendEntriesResponse, ClientWriteResponse, SnapshotResponse, VoteResponse};
@@ -14,6 +18,7 @@ use serde::Serialize;
 use serde::de::DeserializeOwned;
 use std::collections::{BTreeMap, BTreeSet};
 use std::hash::{DefaultHasher, Hash, Hasher};
+use std::sync::Arc;
 use std::time::Instant;
 
 pub type HandlerEntry = (u32, fn() -> Box<dyn RpcHandler>);
@@ -90,12 +95,24 @@ async fn write(app: App, req: Request) -> Result<ClientWriteResponse<TypeConfig>
         e.to_string()
     })
 }
-async fn read(_app: App, _req: String) -> Result<Option<String>, RaftError<TypeConfig>> {
-    // let group = get_group(&app, hash_string(&req));
-    // let kvs = group.state_machine.data.kvs.lock().await;
-    // let value = kvs.get(&req);
-    // value.map(|v| String::from_utf8(v.tostring()))
-    todo!()
+async fn read(app: App, get_req: GetReq) -> Result<GetRes, String> {
+    let group = get_group_by_key(&app, &get_req.key);
+    let ret = group.raft.get_read_linearizer(LeaseRead).await;
+
+    let value = match ret {
+        Ok(linearizer) => {
+            linearizer.await_ready(&group.raft).await.unwrap();
+            group.state_machine.data.kvs.cache.get(&get_req.key).await
+        }
+        Err(e) => return Err(e.to_string()),
+    };
+    match value {
+        None => Ok(GetRes { value: None }),
+        Some(v) => match v.data {
+            ValueObject::String(value) => Ok(GetRes { value: Some(value) }),
+            _ => Err("value is not string".to_string()),
+        },
+    }
 }
 
 async fn vote(app: App, req: VoteReq) -> Result<VoteResponse<TypeConfig>, String> {
