@@ -1,6 +1,7 @@
 use crate::config::config::Config;
 use crate::error::{Error, Result};
 use crate::node::parsed_config::ParsedConfig;
+use crate::protocol::command::CommandFactory;
 use crate::raft::network::client::RpcClient;
 use crate::raft::network::router::{MultiNetworkFactory, Router};
 use crate::raft::network::rpc::Server;
@@ -250,13 +251,10 @@ impl RaftNode {
         let apps: App = raft_node.groups.clone();
 
         let addr = raft_node.config.raft_advertise_endpoint.to_string();
+        let redis_addr = raft_node.config.redis_addr.clone();
         let handle = tokio::task::spawn(async move {
             // Signal startup success
-            let server = Server {
-                app: apps,
-                addr,
-                startup_tx,
-            };
+            let server = Server::new(apps, addr, startup_tx, redis_addr);
             if let Err(e) = server.start_server(shutdown_rx).await {
                 error!("Server error: {}", e);
             }
