@@ -45,7 +45,7 @@ impl RaftNode {
         let raft_engine = dir.join("raft-engine");
         let engine = create_raft_engine(raft_engine.clone());
         let config = Arc::new(openraft::Config {
-            heartbeat_interval: 250,
+            heartbeat_interval: 200,
             election_timeout_min: 299,
             election_timeout_max: 599, // 添加最大选举超时时间
             purge_batch_size: 1,

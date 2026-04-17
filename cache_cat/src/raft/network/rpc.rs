@@ -188,18 +188,34 @@ async fn run_rpc_mode(app: App, socket: TcpStream, peer_addr: SocketAddr) {
     tokio::spawn(async move {
         let mut writer = writer;
         let mut buffer = BytesMut::with_capacity(64 * 1024);
+        let mut write_count = 0;
+        let batch_size_limit = 100;
 
         while let Some(payload) = rx.recv().await {
             buffer.put(payload);
+            write_count += 1;
+
             // 尝试非阻塞地排空 channel 中现有的数据，实现批量写入
             while let Ok(extra) = rx.try_recv() {
                 buffer.put(extra);
-                if buffer.len() > 128 * 1024 { break; }
+                write_count += 1;
+                if buffer.len() > 128 * 1024 || write_count >= batch_size_limit {
+                    break;
+                }
             }
-            if let Err(e) = writer.send(buffer.split().freeze()).await {
-                break;
+
+            match writer.send(buffer.split().freeze()).await {
+                Ok(_) => {
+                    write_count = 0;
+                }
+                Err(e) => {
+                    tracing::error!("Failed to send data to {}: {}", peer_addr, e);
+                    break;
+                }
             }
         }
+
+        tracing::debug!("RPC write task ended for {}", peer_addr);
     });
 
     // 读循环（完全复用）
@@ -210,11 +226,11 @@ async fn run_rpc_mode(app: App, socket: TcpStream, peer_addr: SocketAddr) {
                 let app = app.clone();
                 let package = frame_bytes.freeze();
 
-                // tokio::spawn(async move {
+                tokio::spawn(async move {
                 if let Err(_) = hand(app, tx, package).await {
                     eprintln!("处理请求失败 {}", peer_addr);
                 }
-                // });
+                });
             }
             Err(e) => {
                 eprintln!("读取帧失败 ({}): {}", peer_addr, e);
