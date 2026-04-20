@@ -50,13 +50,20 @@ impl Server {
         self: Self,
         mut shutdown_rx: tokio::sync::broadcast::Receiver<()>,
     ) -> std::io::Result<()> {
-        tokio::spawn(async move {
-            Arc::new(self.redis_server)
-                .start_redis_server()
-                .await
-                .expect("Redis : panic message");
+        let (redis_startup_tx, redis_startup_rx) = oneshot::channel::<StdResult<(), String>>();
+        let redis_server = Arc::new(self.redis_server);
+        let redis_shutdown_rx = shutdown_rx.resubscribe();
+        let redis_handle = tokio::spawn({
+            let redis_server = Arc::clone(&redis_server);
+            async move {
+                if let Err(e) = redis_server
+                    .start_redis_server(redis_shutdown_rx, redis_startup_tx)
+                    .await
+                {
+                    error!("Redis server task error: {}", e);
+                }
+            }
         });
-
         // 初始化配置（保留原有逻辑）
         let listener = match TcpListener::bind(self.addr.clone()).await {
             Ok(l) => l,
@@ -66,6 +73,24 @@ impl Server {
                 return Err(err);
             }
         };
+        // 等 Redis 启动结果
+        match redis_startup_rx.await {
+            Ok(Ok(())) => {
+                info!("Redis started successfully");
+            }
+            Ok(Err(err_msg)) => {
+                let _ = redis_handle.await;
+                return Err(std::io::Error::new(std::io::ErrorKind::AddrInUse, err_msg));
+            }
+            Err(_) => {
+                let _ = redis_handle.await;
+                return Err(std::io::Error::new(
+                    std::io::ErrorKind::Other,
+                    "Redis startup channel closed unexpectedly",
+                ));
+            }
+        }
+
         let _ = self.startup_tx.send(Ok(()));
         println!("Listening on: {}", listener.local_addr()?);
         loop {
@@ -182,26 +207,53 @@ impl RedisServer {
         info!("Connection handler ended for {}", peer_addr);
         Ok(())
     }
-    pub async fn start_redis_server(self: Arc<Self>) -> std::io::Result<()> {
-        let listener = TcpListener::bind(self.redis_addr.clone()).await?;
+    pub async fn start_redis_server(
+        self: Arc<Self>,
+        mut shutdown_rx: tokio::sync::broadcast::Receiver<()>,
+        startup_tx: oneshot::Sender<StdResult<(), String>>,
+    ) -> std::io::Result<()> {
+        let listener = match TcpListener::bind(self.redis_addr.clone()).await {
+            Ok(l) => {
+                let _ = startup_tx.send(Ok(()));
+                l
+            }
+            Err(err) => {
+                let err_msg = format!(
+                    "Failed to bind Redis server to {}: {}",
+                    self.redis_addr, err
+                );
+                let _ = startup_tx.send(Err(err_msg.clone()));
+                return Err(err);
+            }
+        };
+
+        info!("Redis server listening on {}", listener.local_addr()?);
+
         loop {
-            match listener.accept().await {
-                Ok((stream, peer_addr)) => {
-                    info!("New connection accepted from {}", peer_addr);
-                    // Clone the Arc<Server> for the new connection
-                    let server = Arc::clone(&self);
-                    // Spawn an independent task for each connection
-                    tokio::spawn(async move {
-                        if let Err(e) = server.handle_connection(stream, peer_addr).await {
-                            error!("Error handling connection from {}: {}", peer_addr, e);
+            tokio::select! {
+                res = listener.accept() => {
+                    match res {
+                        Ok((stream, peer_addr)) => {
+                            let server = Arc::clone(&self);
+                            tokio::spawn(async move {
+                                if let Err(e) = server.handle_connection(stream, peer_addr).await {
+                                    error!("Error handling redis connection from {}: {}", peer_addr, e);
+                                }
+                            });
                         }
-                    });
+                        Err(e) => {
+                            error!("Redis accept error: {}", e);
+                        }
+                    }
                 }
-                Err(e) => {
-                    error!("Failed to accept connection: {}", e);
+                _ = shutdown_rx.recv() => {
+                    info!("Redis server stopping...");
+                    break;
                 }
             }
         }
+
+        Ok(())
     }
 }
 
