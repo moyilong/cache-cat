@@ -120,8 +120,6 @@ async fn handle_connection(
     Ok(())
 }
 
-
-
 async fn run_stream_mode(
     app: App,
     mut socket: TcpStream,
@@ -187,37 +185,14 @@ async fn run_rpc_mode(app: App, socket: TcpStream, peer_addr: SocketAddr) {
     // 写任务
     tokio::spawn(async move {
         let mut writer = writer;
-        let mut buffer = BytesMut::with_capacity(64 * 1024);
-        let mut write_count = 0;
-        let batch_size_limit = 100;
-
         while let Some(payload) = rx.recv().await {
-            buffer.put(payload);
-            write_count += 1;
-
-            // 尝试非阻塞地排空 channel 中现有的数据，实现批量写入
-            while let Ok(extra) = rx.try_recv() {
-                buffer.put(extra);
-                write_count += 1;
-                if buffer.len() > 128 * 1024 || write_count >= batch_size_limit {
-                    break;
-                }
-            }
-
-            match writer.send(buffer.split().freeze()).await {
-                Ok(_) => {
-                    write_count = 0;
-                }
-                Err(e) => {
-                    tracing::error!("Failed to send data to {}: {}", peer_addr, e);
-                    break;
-                }
+            if let Err(e) = writer.send(payload).await {
+                eprintln!("写入 TCP 失败 ({}): {}", peer_addr, e);
+                break;
             }
         }
-
-        tracing::debug!("RPC write task ended for {}", peer_addr);
+        debug!("写任务结束: {}", peer_addr);
     });
-
     // 读循环（完全复用）
     while let Some(frame_result) = reader.next().await {
         match frame_result {
@@ -227,9 +202,9 @@ async fn run_rpc_mode(app: App, socket: TcpStream, peer_addr: SocketAddr) {
                 let package = frame_bytes.freeze();
 
                 tokio::spawn(async move {
-                if let Err(_) = hand(app, tx, package).await {
-                    eprintln!("处理请求失败 {}", peer_addr);
-                }
+                    if let Err(_) = hand(app, tx, package).await {
+                        eprintln!("处理请求失败 {}", peer_addr);
+                    }
                 });
             }
             Err(e) => {
@@ -253,7 +228,7 @@ pub async fn hand(app: App, tx: UnboundedSender<Bytes>, mut package: Bytes) -> R
 
     // 使用 bytes 库的内置方法，减少手动切片和拷贝
     let request_id = package.get_u32(); // 自动前进 4 字节
-    let func_id = package.get_u32();    // 自动再前进 4 字节
+    let func_id = package.get_u32(); // 自动再前进 4 字节
     // 前进 8 字节，留下 body
     // package.advance(8);
 
@@ -278,7 +253,6 @@ pub async fn hand(app: App, tx: UnboundedSender<Bytes>, mut package: Bytes) -> R
     }
     Ok(())
 }
-
 
 pub struct RedisServer {
     pub(crate) app: App,
