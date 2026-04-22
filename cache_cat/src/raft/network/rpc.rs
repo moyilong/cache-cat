@@ -127,58 +127,49 @@ async fn handle_connection(
 }
 
 async fn pipeline_mode(app: App, socket: TcpStream, peer_addr: SocketAddr) {
-    use futures::StreamExt;
-
     let codec = LengthDelimitedCodec::new();
-    let (mut writer, reader) = Framed::new(socket, codec).split();
+    let framed = Framed::new(socket, codec);
+    let (mut writer, mut reader) = framed.split();
 
-    // 核心逻辑：将 reader 映射为一个并发流
-    let mut request_stream = reader
-        .map(move |frame_res| {
-            let app = app.clone();
-            // 在这里直接 spawn，返回 JoinHandle
-            tokio::spawn(async move {
-                let frame_bytes = match frame_res {
-                    Ok(bytes) => bytes,
-                    Err(e) => {
-                        return Err(format!("Read error: {}", e));
+    // 直接在这里维护队列，不再需要 mpsc
+    let mut pending_futures = FuturesOrdered::new();
+
+    loop {
+        tokio::select! {
+            // 1. 尝试从网络读取新的请求
+            // 注意：只有当 pending_futures 还没满时才读取，起到背压作用
+            frame_result = reader.next(), if pending_futures.len() < 100 => {
+                match frame_result {
+                    Some(Ok(frame_bytes)) => {
+                        let request: Request = bincode2::deserialize(&frame_bytes).expect("Failed to deserialize");
+                        // 直接推进队列，不经过 channel
+                        let future = write(app.clone(), request).boxed();
+                        pending_futures.push_back(future);
                     }
-                };
-                let request: Request = bincode2::deserialize(&frame_bytes)
-                    .map_err(|e| format!("Deserialize error: {}", e))?;
+                    Some(Err(e)) => {
+                        eprintln!("读取帧失败 ({}): {}", peer_addr, e);
+                        break;
+                    }
+                    None => break, // 连接关闭
+                }
+            }
 
-                let res = write(app, request).await;
-
-                bincode2::serialize(&res)
-                    .map_err(|e| format!("Serialize error: {}", e))
-            })
-        })
-        // buffered(n) 会并行执行流中的前 n 个任务，但保证按顺序产出结果
-        .buffered(1000);
-
-    // 写回循环
-    while let Some(join_res) = request_stream.next().await {
-        match join_res {
-            Ok(Ok(encoded)) => {
+            // 2. 检查是否有执行完的结果需要写回客户端
+            // FuturesOrdered 会保证即便 Future 执行快慢不一，返回顺序也和推入顺序一致
+            Some(res) = pending_futures.next(), if !pending_futures.is_empty() => {
+                let encoded = bincode2::serialize(&res).unwrap();
                 if let Err(e) = writer.send(Bytes::from(encoded)).await {
-                    eprintln!("Failed to send response to {}: {}", peer_addr, e);
+                    eprintln!("写入 TCP 失败 ({}): {}", peer_addr, e);
                     break;
                 }
             }
-            Ok(Err(e)) => {
-                // 这里捕获逻辑错误或读取错误
-                eprintln!("Pipeline error for {}: {}", peer_addr, e);
-                break; // 客户端断开或数据异常，停止流处理
-            }
-            Err(e) => {
-                // 这里捕获 tokio::spawn 本身的 panic
-                eprintln!("Task panicked for {}: {}", peer_addr, e);
-                break;
-            }
+
+            // 如果两端都关闭了，退出
+            else => break,
         }
     }
+    debug!("Pipeline mode ended for {}", peer_addr);
 }
-
 async fn rpc_mode(app: App, socket: TcpStream, peer_addr: SocketAddr) {
     let codec = LengthDelimitedCodec::new();
     let framed = Framed::new(socket, codec);
