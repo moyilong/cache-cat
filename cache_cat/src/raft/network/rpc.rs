@@ -4,13 +4,11 @@ use crate::raft::network::external_handler::{HANDLER_TABLE, batch_write, write};
 use crate::raft::store::snapshot::snapshot_handler::get_snapshot_file_name;
 use crate::raft::types::core::response_value::Value;
 use crate::raft::types::entry::request::Request;
-use crate::raft::types::raft_types::{App, GroupId, TypeConfig, get_app};
+use crate::raft::types::raft_types::{CacheCatApp, GroupId, TypeConfig};
 use bytes::{Buf, BufMut, Bytes, BytesMut};
 use futures::stream::FuturesOrdered;
 use futures::{SinkExt, StreamExt};
 use moka::future::FutureExt;
-use openraft::base::BoxFuture;
-use openraft::raft::ClientWriteResponse;
 use std::io::Result as IoResult;
 use std::net::SocketAddr;
 use std::result::Result as StdResult;
@@ -22,19 +20,18 @@ use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::mpsc;
 use tokio::sync::mpsc::UnboundedSender;
 use tokio::sync::oneshot::Sender;
-use tokio::task::JoinHandle;
 use tokio_util::codec::{Framed, LengthDelimitedCodec};
 use tracing::{debug, error, info, warn};
 use uuid::Uuid;
 pub struct Server {
-    pub(crate) app: App,
+    pub(crate) app: Arc<CacheCatApp>,
     pub addr: String,
     pub startup_tx: Sender<StdResult<(), String>>,
     pub redis_server: RedisServer,
 }
 impl Server {
     pub fn new(
-        app: App,
+        app: Arc<CacheCatApp>,
         addr: String,
         startup_tx: Sender<StdResult<(), String>>,
         redis_addr: String,
@@ -44,7 +41,7 @@ impl Server {
             addr,
             startup_tx,
             redis_server: RedisServer {
-                app,
+                app: app.clone(),
                 redis_addr,
                 cmd_factory: Arc::new(CommandFactory::init()),
             },
@@ -99,7 +96,7 @@ impl Server {
     }
 }
 async fn handle_connection(
-    app: App,
+    app: Arc<CacheCatApp>,
     mut socket: TcpStream,
     peer_addr: SocketAddr,
 ) -> std::io::Result<()> {
@@ -126,7 +123,7 @@ async fn handle_connection(
     Ok(())
 }
 
-async fn pipeline_mode(app: App, socket: TcpStream, peer_addr: SocketAddr) {
+async fn pipeline_mode(app: Arc<CacheCatApp>, socket: TcpStream, peer_addr: SocketAddr) {
     let codec = LengthDelimitedCodec::new();
     let framed = Framed::new(socket, codec);
     let (mut writer, mut reader) = framed.split();
@@ -170,7 +167,7 @@ async fn pipeline_mode(app: App, socket: TcpStream, peer_addr: SocketAddr) {
     }
     debug!("Pipeline mode ended for {}", peer_addr);
 }
-async fn rpc_mode(app: App, socket: TcpStream, peer_addr: SocketAddr) {
+async fn rpc_mode(app: Arc<CacheCatApp>, socket: TcpStream, peer_addr: SocketAddr) {
     let codec = LengthDelimitedCodec::new();
     let framed = Framed::new(socket, codec);
 
@@ -216,7 +213,11 @@ async fn rpc_mode(app: App, socket: TcpStream, peer_addr: SocketAddr) {
 
 /// hand 函数现在期望接收到的 `package` 已经是不带长度头的一帧数据（即：request_id(4) + func_id(4) + body）
 /// 并通过 tx 发送回写任务一个 payload（也不包含长度头），写任务会交给 codec 自动添加长度头。
-pub async fn hand(app: App, tx: UnboundedSender<Bytes>, mut package: Bytes) -> Result<(), ()> {
+pub async fn hand(
+    app: Arc<CacheCatApp>,
+    tx: UnboundedSender<Bytes>,
+    mut package: Bytes,
+) -> Result<(), ()> {
     // 安全解析：至少需要 8 bytes (request_id + func_id)
     if package.len() < 8 {
         eprintln!("包长度不足：{}", package.len());
@@ -249,7 +250,7 @@ pub async fn hand(app: App, tx: UnboundedSender<Bytes>, mut package: Bytes) -> R
     Ok(())
 }
 async fn stream_mode(
-    app: App,
+    app: Arc<CacheCatApp>,
     mut socket: TcpStream,
     peer_addr: SocketAddr,
 ) -> std::io::Result<()> {
@@ -258,7 +259,7 @@ async fn stream_mode(
     socket.read_exact(&mut buf).await?;
     let group_id = u32::from_be_bytes(buf);
 
-    let path = get_app(&app, group_id as GroupId).path.clone();
+    let path = app.path.clone();
     let snapshot_dir = path.join("snapshot");
 
     // 确保目录存在
@@ -267,8 +268,8 @@ async fn stream_mode(
     socket.read_exact(&mut buf).await?;
     let uuid = Uuid::from_bytes(buf);
     // 临时文件名
-    let temp_filename = format!("hardlink_snapshot_{}_{}.tmp", uuid, group_id);
-    let final_filename = get_snapshot_file_name(group_id as GroupId);
+    let temp_filename = format!("hardlink_snapshot_{}.tmp", uuid);
+    let final_filename = get_snapshot_file_name();
 
     let temp_path = snapshot_dir.join(&temp_filename);
     let final_path = snapshot_dir.join(&final_filename);
@@ -302,7 +303,7 @@ async fn stream_mode(
 }
 
 pub struct RedisServer {
-    pub(crate) app: App,
+    pub(crate) app: Arc<CacheCatApp>,
     redis_addr: String,
     pub cmd_factory: Arc<CommandFactory>,
 }

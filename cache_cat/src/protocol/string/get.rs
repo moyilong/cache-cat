@@ -2,7 +2,6 @@ use crate::protocol::command::Command;
 use crate::raft::network::rpc::{RedisServer, Server};
 use crate::raft::types::core::response_value::Value;
 use crate::raft::types::core::value_object::ValueObject;
-use crate::raft::types::raft_types::get_group_by_key;
 use async_trait::async_trait;
 use openraft::ReadPolicy::LeaseRead;
 
@@ -31,14 +30,16 @@ impl GetParams {
 
 /// Get a value from the server, checking for expiration.
 /// Returns (value, expired) where `expired` is true if the key was expired and deleted.
-async fn get_value_check_expiry(server: &RedisServer, key: &Vec<u8>) -> Result<Option<Vec<u8>>, String> {
-    let group = get_group_by_key(&server.app, key);
-    let ret = group.raft.get_read_linearizer(LeaseRead).await;
-
+async fn get_value_check_expiry(
+    server: &RedisServer,
+    key: &Vec<u8>,
+) -> Result<Option<Vec<u8>>, String> {
+    let raft = &server.app.raft;
+    let ret = raft.get_read_linearizer(LeaseRead).await;
     let value = match ret {
         Ok(linearizer) => {
-            linearizer.await_ready(&group.raft).await.unwrap();
-            group.state_machine.data.kvs.cache.get(key).await
+            linearizer.await_ready(&raft).await.unwrap();
+            server.app.state_machine.data.kvs.cache.get(key).await
         }
         Err(_) => return Err("corrupted value".to_string()),
     };

@@ -3,7 +3,7 @@ use cache_cat::node::raft_builder::RaftNodeBuilder;
 use cache_cat::raft::types::entry::bae_operation::BaseOperation::Set;
 use cache_cat::raft::types::entry::bae_operation::SetReq;
 use cache_cat::raft::types::entry::request::Request;
-use cache_cat::raft::types::raft_types::{CacheCatApp, get_group};
+use cache_cat::raft::types::raft_types::CacheCatApp;
 use mimalloc::MiMalloc;
 use std::env;
 use std::error::Error;
@@ -35,7 +35,6 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let config = load_config(&config_path)?;
 
     let raft_node = RaftNodeBuilder::build(&config).await?;
-    let option = raft_node.groups.get(0).cloned().unwrap();
 
     // if config.node_id == 1 {
     //     tokio::spawn(async move {

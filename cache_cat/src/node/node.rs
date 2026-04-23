@@ -10,9 +10,7 @@ use crate::raft::store::raft_engine::create_raft_engine;
 use crate::raft::store::statemachine::{StateMachineData, StateMachineStore};
 use crate::raft::types::entry::forward::{ForwardRequest, ForwardRequestBody};
 use crate::raft::types::entry::membership::JoinRequest;
-use crate::raft::types::raft_types::{
-    App, CacheCatApp, GROUP_NUM, GroupId, Node, NodeId, Raft, TypeConfig,
-};
+use crate::raft::types::raft_types::{CacheCatApp, GroupId, Node, NodeId, Raft, TypeConfig};
 use openraft::SnapshotPolicy::Never;
 use openraft::error::{InitializeError, RaftError};
 use openraft::raft::ClientWriteResponse;
@@ -28,7 +26,7 @@ use tracing::{debug, error, info};
 pub struct RaftNode {
     config: ParsedConfig,
 
-    pub groups: App,
+    pub app: Arc<CacheCatApp>,
 
     shutdown_tx: broadcast::Sender<()>,
     _shutdown_rx: broadcast::Receiver<()>,
@@ -41,7 +39,6 @@ impl RaftNode {
         let dir = Path::new(&app_config.raft.log_path);
         let path = dir.join("");
         let (shutdown_tx, shutdown_rx_for_struct) = broadcast::channel(1);
-        let mut groups = Vec::new();
         let raft_engine = dir.join("raft-engine");
         let engine = create_raft_engine(raft_engine.clone());
         let config = Arc::new(openraft::Config {
@@ -56,37 +53,31 @@ impl RaftNode {
             replication_lag_threshold: 200, //需要大于snapshot_policy
             ..Default::default()
         });
-        for i in 0..GROUP_NUM {
-            let group_id = i as GroupId;
-            // let engine_path = dir.as_ref().join(format!("raft-engine-{}", group_id));
-            // let engine = create_raft_engine(engine_path);
-            let router = Router::new(app_config.raft.address.clone(), dir.join(""), node_id);
-            let network = MultiNetworkFactory::new(router, group_id);
-            let log_store = LogStore::new(group_id, engine.clone());
-            let sm_store = StateMachineStore::new(path.clone(), group_id, node_id).await?;
-            let raft = openraft::Raft::new(
-                node_id,
-                config.clone(),
-                network,
-                log_store,
-                sm_store.clone(),
-            )
-            .await
-            .map_err(|e| Error::internal(format!("Failed to create raft: {}", e)))?;
-            let app = CacheCatApp {
-                node_id,
-                addr: app_config.raft.address.clone(),
-                raft,
-                group_id,
-                state_machine: sm_store,
-                path: dir.join(""),
-            };
-            groups.push(app.into());
-        }
+        let group_id = 0;
+        let router = Router::new(app_config.raft.address.clone(), dir.join(""), node_id);
+        let network = MultiNetworkFactory::new(router, group_id);
+        let log_store = LogStore::new(group_id, engine.clone());
+        let sm_store = StateMachineStore::new(path.clone(), group_id, node_id).await?;
+        let raft = openraft::Raft::new(
+            node_id,
+            config.clone(),
+            network,
+            log_store,
+            sm_store.clone(),
+        )
+        .await
+        .map_err(|e| Error::internal(format!("Failed to create raft: {}", e)))?;
+        let app = CacheCatApp {
+            node_id,
+            addr: app_config.raft.address.clone(),
+            raft,
+            state_machine: sm_store,
+            path: dir.join(""),
+        };
 
         let mut node = Self {
             config: ParsedConfig::from(app_config)?,
-            groups: Arc::new(groups),
+            app: Arc::new(app),
             shutdown_tx,
             _shutdown_rx: shutdown_rx_for_struct,
             service_handle: Mutex::new(None),
@@ -196,15 +187,13 @@ impl RaftNode {
     ///   - `InvalidConfig` if node configuration is invalid
     ///   - `Internal` if adding node to cluster fails
     async fn init_cluster(&self, node: Node) -> Result<()> {
-        let groups = &self.groups;
-        for app in groups.iter() {
-            if node.node_id != *app.raft.node_id() {
-                return Err(Error::config(format!(
-                    "Node ID {} does not match current node ID {}",
-                    node.node_id,
-                    app.raft.node_id()
-                )));
-            }
+        let app = &self.app;
+        if node.node_id != *app.raft.node_id() {
+            return Err(Error::config(format!(
+                "Node ID {} does not match current node ID {}",
+                node.node_id,
+                app.raft.node_id()
+            )));
         }
 
         // Validate endpoint
@@ -219,20 +208,18 @@ impl RaftNode {
         let mut nodes = BTreeMap::new();
         nodes.insert(node_id, node);
 
-        for app in groups.iter() {
-            if let Err(e) = app.raft.initialize(nodes.clone()).await {
-                match e {
-                    RaftError::APIError(e) => match e {
-                        InitializeError::NotAllowed(e) => {
-                            info!("Already initialized: {}", e);
-                        }
-                        InitializeError::NotInMembers(e) => {
-                            return Err(Error::config(e.to_string()));
-                        }
-                    },
-                    RaftError::Fatal(e) => {
-                        return Err(Error::internal(e.to_string()));
+        if let Err(e) = app.raft.initialize(nodes.clone()).await {
+            match e {
+                RaftError::APIError(e) => match e {
+                    InitializeError::NotAllowed(e) => {
+                        info!("Already initialized: {}", e);
                     }
+                    InitializeError::NotInMembers(e) => {
+                        return Err(Error::config(e.to_string()));
+                    }
+                },
+                RaftError::Fatal(e) => {
+                    return Err(Error::internal(e.to_string()));
                 }
             }
         }
@@ -241,20 +228,18 @@ impl RaftNode {
 
     async fn start_raft_service(raft_node: Arc<Self>) -> Result<()> {
         let raft_endpoint = raft_node.config.raft_endpoint.clone();
-
+        let app = raft_node.app.clone();
         // Subscribe to shutdown signal
         let shutdown_rx = raft_node.shutdown_tx.subscribe();
 
         // Create oneshot channel to signal startup completion
         let (startup_tx, startup_rx) = oneshot::channel::<StdResult<(), String>>();
 
-        let apps: App = raft_node.groups.clone();
-
         let addr = raft_node.config.raft_advertise_endpoint.to_string();
         let redis_addr = raft_node.config.redis_addr.clone();
         let handle = tokio::task::spawn(async move {
             // Signal startup success
-            let server = Server::new(apps, addr, startup_tx, redis_addr);
+            let server = Server::new(app, addr, startup_tx, redis_addr);
             if let Err(e) = server.start_server(shutdown_rx).await {
                 error!("Server error: {}", e);
             }

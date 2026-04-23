@@ -81,7 +81,6 @@ impl RaftSnapshotBuilder<TypeConfig> for StateMachineStore {
         dump_cache_to_path(
             cache,
             &self.path,
-            self.group_id,
             self.data.raft_meta_data.clone(),
             self.data.incremental_operation_queue.clone(),
         )
@@ -125,7 +124,7 @@ impl StateMachineStore {
             path: path.clone(),
             group_id,
         };
-        let filename = get_snapshot_file_name(group_id);
+        let filename = get_snapshot_file_name();
         let res = load_cache_from_path(cache, path.join("snapshot").join(filename)).await?;
         match res {
             None => {}

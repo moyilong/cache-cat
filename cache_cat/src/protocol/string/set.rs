@@ -1,8 +1,7 @@
 use crate::protocol::command::Command;
-use crate::raft::network::rpc::{RedisServer, Server};
+use crate::raft::network::rpc::{RedisServer};
 use crate::raft::types::core::response_value::Value;
 use crate::raft::types::entry::request::Request;
-use crate::raft::types::raft_types::get_group_by_key;
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use std::fmt::Display;
@@ -195,9 +194,13 @@ impl Command for SetCommand {
             None => return Value::error("ERR wrong number of arguments for 'set' command"),
         };
 
-        let group = get_group_by_key(&server.app, &params.key);
         let get = params.get;
-        match group.raft.client_write(Request::RedisSet(params)).await {
+        match server
+            .app
+            .raft
+            .client_write(Request::RedisSet(params))
+            .await
+        {
             Ok(res) => {
                 if get {
                     res.data
