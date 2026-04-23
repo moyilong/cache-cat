@@ -147,7 +147,7 @@ impl RaftNetworkV2<TypeConfig> for TcpNetwork {
                         format!("node {} not found", target as u64),
                     )));
                 }
-                Some(c) => c.clone(), // ⭐ 必须 clone
+                Some(c) => c.clone(),
             }
         };
 

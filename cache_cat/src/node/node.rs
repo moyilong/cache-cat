@@ -11,7 +11,7 @@ use crate::raft::store::statemachine::{StateMachineData, StateMachineStore};
 use crate::raft::types::entry::forward::{ForwardRequest, ForwardRequestBody};
 use crate::raft::types::entry::membership::JoinRequest;
 use crate::raft::types::raft_types::{CacheCatApp, Node, NodeId, Raft, TypeConfig};
-use openraft::SnapshotPolicy::Never;
+use openraft::SnapshotPolicy::{LogsSinceLast, Never};
 use openraft::error::{InitializeError, RaftError};
 use openraft::raft::ClientWriteResponse;
 use std::collections::{BTreeMap, HashMap};
@@ -49,7 +49,7 @@ impl RaftNode {
             max_in_snapshot_log_to_keep: 500, //生成快照后要保留的日志数量（以供从节点同步数据）需要大于等于replication_lag_threshold,该参数会影响快照逻辑
             max_append_entries: Some(5000000),
             max_payload_entries: 5000000,
-            snapshot_policy: Never,         //LogsSinceLast(100),
+            snapshot_policy: LogsSinceLast(50),         //LogsSinceLast(100),
             replication_lag_threshold: 200, //需要大于snapshot_policy
             ..Default::default()
         });
@@ -241,11 +241,11 @@ impl RaftNode {
         let redis_addr = raft_node.config.redis_addr.clone();
         let handle = tokio::task::spawn(async move {
             // Signal startup success
-            let server = Server::new(app, addr, startup_tx, redis_addr);
+            let server = Server::new(app, addr.clone(), startup_tx, redis_addr);
             if let Err(e) = server.start_server(shutdown_rx).await {
                 error!("Server error: {}", e);
             }
-            info!("TCP Service task finished");
+            info!("TCP Service task finished, addr: {}", addr);
         });
         // Wait for startup completion signal
         match startup_rx.await {

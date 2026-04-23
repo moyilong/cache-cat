@@ -254,10 +254,6 @@ async fn stream_mode(
     mut socket: TcpStream,
     peer_addr: SocketAddr,
 ) -> std::io::Result<()> {
-    // 读取 group_id
-    let mut buf = [0u8; 4];
-    socket.read_exact(&mut buf).await?;
-    let group_id = u32::from_be_bytes(buf);
 
     let path = app.path.clone();
     let snapshot_dir = path.join("snapshot");
