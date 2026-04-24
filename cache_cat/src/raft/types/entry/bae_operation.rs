@@ -12,6 +12,7 @@ pub enum BaseOperation {
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct IncrReq {
     pub key: Arc<Vec<u8>>,
+    pub value: i64,
 }
 impl fmt::Display for IncrReq {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {

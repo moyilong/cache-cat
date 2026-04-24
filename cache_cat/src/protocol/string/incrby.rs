@@ -12,13 +12,14 @@ use async_trait::async_trait;
 
 /// Parameters for INCR command
 #[derive(Debug, Clone, PartialEq)]
-pub struct IncrParams {
+pub struct IncrByParams {
     pub key: Vec<u8>,
+    pub increment: i64,
 }
 
-impl IncrParams {
+impl IncrByParams {
     fn parse(items: &[Value]) -> Result<Self, ProtocolError> {
-        if items.len() != 2 {
+        if items.len() != 3 {
             return Err(ProtocolError::WrongArgCount("INCR"));
         }
 
@@ -27,21 +28,33 @@ impl IncrParams {
             Value::SimpleString(s) => s.as_bytes().to_vec(),
             _ => return Err(ProtocolError::InvalidArgument("key")),
         };
+        let increment = match &items[2] {
+            Value::BulkString(Some(data)) => {
+                let s = String::from_utf8_lossy(data);
+                s.parse::<i64>()
+                    .map_err(|_| ProtocolError::InvalidArgument("increment"))?
+            }
+            Value::SimpleString(s) => s
+                .parse::<i64>()
+                .map_err(|_| ProtocolError::InvalidArgument("increment"))?,
+            Value::Integer(i) => *i,
+            _ => return Err(ProtocolError::InvalidArgument("increment")),
+        };
 
-        Ok(IncrParams { key })
+        Ok(IncrByParams { key, increment })
     }
 }
 
 /// INCR command executor
-pub struct IncrCommand;
+pub struct IncrByCommand;
 
 #[async_trait]
-impl Command for IncrCommand {
+impl Command for IncrByCommand {
     async fn execute(&self, items: &[Value], server: &RedisServer) -> Result<Value, CacheCatError> {
-        let params = IncrParams::parse(items)?;
+        let params = IncrByParams::parse(items)?;
         let req = IncrReq {
             key: Arc::from(params.key),
-            value: 1,
+            value: params.increment,
         };
         let res = server
             .app

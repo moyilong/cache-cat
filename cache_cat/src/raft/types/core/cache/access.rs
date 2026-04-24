@@ -4,6 +4,7 @@ use crate::raft::types::core::value_object::ValueObject;
 use crate::raft::types::entry::bae_operation::{BaseOperation, DelReq, IncrReq, LPushReq, SetReq};
 use crate::raft::types::entry::request::AtomicRequest;
 use crate::utils::parse_i64;
+use moka::Entry;
 use moka::ops::compute::{CompResult, Op};
 use std::collections::LinkedList;
 use std::sync::Arc;
@@ -132,7 +133,55 @@ impl MyCache {
     }
 
     pub async fn incr(&self, incr_req: IncrReq, queue: UpdateType<'_>) -> Value {
-        todo!()
+        let key = incr_req.key;
+        let delta = incr_req.value;
+        let result = self
+            .cache
+            .entry(key)
+            .and_compute_with(|maybe_entry| async move {
+                match maybe_entry {
+                    Some(entry) => {
+                        let mut value = entry.into_value();
+                        match &mut value.data {
+                            ValueObject::Int(n) => {
+                                *n += delta;
+                                Op::Put(value)
+                            }
+                            ValueObject::String(s) => {
+                                let num = match parse_i64(s) {
+                                    None => {
+                                        return Op::Nop;
+                                    }
+                                    Some(v) => v,
+                                };
+                                value.data = ValueObject::Int(num + delta);
+                                Op::Put(value)
+                            }
+                            _ => Op::Nop,
+                        }
+                    }
+                    None => {
+                        let value = MyValue {
+                            data: ValueObject::Int(delta),
+                            expires_at: 0,
+                            version: 0,
+                        };
+                        Op::Put(value)
+                    }
+                }
+            })
+            .await;
+
+        match result {
+            CompResult::Inserted(entry)
+            | CompResult::ReplacedWith(entry)
+            | CompResult::Unchanged(entry) => match entry.into_value().data {
+                ValueObject::Int(n) => Value::Integer(n),
+                _ => Value::Error("Key exists but is not an Integer".to_string()),
+            },
+            CompResult::StillNone(_) => Value::Error("Unexpected: key not found".to_string()),
+            CompResult::Removed(_) => Value::Error("Unexpected: value removed".to_string()),
+        }
     }
     pub async fn l_push(&self, l_push: LPushReq) -> Value {
         let result = self
