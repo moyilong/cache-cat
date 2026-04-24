@@ -254,7 +254,6 @@ async fn stream_mode(
     mut socket: TcpStream,
     peer_addr: SocketAddr,
 ) -> std::io::Result<()> {
-
     let path = app.path.clone();
     let snapshot_dir = path.join("snapshot");
 
@@ -332,7 +331,7 @@ impl RedisServer {
                         processed += consumed;
 
                         // Log the parsed command
-                        info!("Received command from {}: {:?}", peer_addr, value);
+                        debug!("Received command from {}: {:?}", peer_addr, value);
 
                         // Process the command and get response
                         let response = self.process_command(value).await;

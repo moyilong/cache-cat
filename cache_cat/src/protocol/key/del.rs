@@ -9,6 +9,7 @@
 
 use crate::protocol::command::Command;
 
+use crate::error::{CacheCatError, ProtocolError, StorageError};
 use crate::raft::network::rpc::RedisServer;
 use crate::raft::types::core::response_value::Value;
 use crate::raft::types::entry::bae_operation::BaseOperation::Del;
@@ -29,10 +30,10 @@ pub struct DelParams {
 impl DelParams {
     /// Parse DEL command parameters from RESP array items
     /// Format: DEL key [key ...]
-    fn parse(items: &[Value]) -> Option<Self> {
+    fn parse(items: &[Value]) -> Result<Self, ProtocolError> {
         // Need at least: DEL key (2 items)
         if items.len() < 2 {
-            return None;
+            return Err(ProtocolError::WrongArgCount("del"));
         }
 
         let mut keys: Vec<Vec<u8>> = Vec::with_capacity(items.len() - 1);
@@ -40,12 +41,12 @@ impl DelParams {
             let key = match item {
                 Value::BulkString(Some(data)) => data.clone(),
                 Value::SimpleString(s) => s.as_bytes().to_vec(),
-                _ => return None,
+                _ => return Err(ProtocolError::WrongArgCount("del")),
             };
             keys.push(key);
         }
 
-        Some(DelParams { keys })
+        Ok(DelParams { keys })
     }
 }
 impl Display for DelParams {
@@ -59,21 +60,22 @@ pub struct DelCommand;
 
 #[async_trait]
 impl Command for DelCommand {
-    async fn execute(&self, items: &[Value], server: &RedisServer) -> Value {
-        let params = match DelParams::parse(items) {
-            Some(params) => params,
-            None => return Value::error("ERR wrong number of arguments for 'del' command"),
-        };
-
+    async fn execute(&self, items: &[Value], server: &RedisServer) -> Result<Value, CacheCatError> {
+        let params = DelParams::parse(items)?;
         let request = Request::Base(Del(DelReq {
             keys: Arc::from(params.keys),
         }));
-        match server.app.raft.client_write(request).await {
-            Ok(res) => match res.data {
-                Value::Integer(i) => Value::Integer(i),
-                _ => Value::error("ERR unexpected response"),
-            },
-            Err(e) => Value::error(format!("ERR {}", e)),
+        let res = server
+            .app
+            .raft
+            .client_write(request)
+            .await
+            .map_err(|e| StorageError::WriteFailed(e.to_string()))?;
+        match res.data {
+            Value::Integer(i) => Ok(Value::Integer(i)),
+            _ => Err(CacheCatError::from(StorageError::WriteFailed(
+                "ERR unexpected response".to_string(),
+            ))),
         }
     }
 }
