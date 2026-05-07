@@ -33,11 +33,36 @@ jobs:
       - name: Install cargo-zigbuild
         run: cargo install cargo-zigbuild --locked
 
+      - name: Set version
+        id: version
+        run: |
+          if [ "${GITHUB_REF_TYPE}" = "tag" ]; then
+            VERSION="${GITHUB_REF_NAME}"
+          elif [ "${GITHUB_REF_TYPE}" = "branch" ] && [ "${GITHUB_REF_NAME}" = "master" ]; then
+            VERSION="nightly"
+          else
+            VERSION="${GITHUB_REF_NAME}"
+          fi
+
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - run: mkdir -p dist
+
       - name: Build X86-64
-        run: cargo zigbuild --release --target x86_64-unknown-linux-musl
+        run: |
+          cargo zigbuild --release --target x86_64-unknown-linux-musl
+          cp dist/x86_64-unknown-linux-musl/cache_cat dist/cache_cat-x86_64
       
       - name: Build AARCH64
-        run: cargo zigbuild --release --target aarch64-unknown-linux-musl
+        run: |
+          cargo zigbuild --release --target aarch64-unknown-linux-musl
+          cp dist/aarch64-unknown-linux-musl/cache_cat dist/cache_cat-aarch64
+
+      - name: Upload to GitHub Release
+        uses: softprops/action-gh-release@v6
+        with:
+          files: dist/*
 
       # - name: Set up QEMU
       #   uses: docker/setup-qemu-action@v2
