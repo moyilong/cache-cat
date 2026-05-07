@@ -38,8 +38,7 @@ jobs:
       - name: Build
         run: |
           mkdir -p dist
-          mkdir -p dist-docker/linux
-
+          
           build()
           {
             cargo zigbuild --release --target $1
