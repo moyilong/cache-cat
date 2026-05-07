@@ -12,31 +12,55 @@ jobs:
       packages: write
 
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v3
+      - name: Checkout code
+        uses: actions/checkout@v3
 
-    - name: Set up QEMU
-      uses: docker/setup-qemu-action@v2
-      with:
-        platforms: all
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: |
+            x86_64-unknown-linux-musl
+            aarch64-unknown-linux-musl
 
-    - name: Set up Docker Buildx
-      uses: docker/setup-buildx-action@v2
+      - name: Install Zig
+        uses: mlugg/setup-zig@v1
+        with:
+          version: 0.13.0
 
-    - name: Log in to GHCR
-      uses: docker/login-action@v2
-      with:
-        registry: ghcr.io
-        username: ${{ github.actor }}
-        password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
 
-    - name: Run build-docker.sh
-      run: |
-        PUSH_IMAGE="ghcr.io/${{ github.repository_owner }}/${{ github.repository }}" \
-          bash scripts/build-docker.sh
+      - name: Install cargo-zigbuild
+        run: cargo install cargo-zigbuild --locked
 
-    - name: Push Docker image to GHCR
-      run: |
-        # Extract image tag from build-docker.sh or set it manually
-        IMAGE_NAME="ghcr.io/${{ github.repository_owner }}/${{ github.repository }}"
-        docker push "$IMAGE_NAME"
+      - name: Build X86-64
+        run: cargo zigbuild --release --target x86_64-unknown-linux-musl
+      
+      - name: Build AARCH64
+        run: cargo zigbuild --release --target aarch64-unknown-linux-musl
+
+      # - name: Set up QEMU
+      #   uses: docker/setup-qemu-action@v2
+      #   with:
+      #     platforms: all
+
+      # - name: Set up Docker Buildx
+      #   uses: docker/setup-buildx-action@v2
+
+      # - name: Log in to GHCR
+      #   uses: docker/login-action@v2
+      #   with:
+      #     registry: ghcr.io
+      #     username: ${{ github.actor }}
+      #     password: ${{ secrets.GITHUB_TOKEN }}
+
+      # - name: Run build-docker.sh
+      #   run: |
+      #     PUSH_IMAGE="ghcr.io/${{ github.repository_owner }}/${{ github.repository }}" \
+      #       bash scripts/build-docker.sh
+
+      # - name: Push Docker image to GHCR
+      #   run: |
+      #     # Extract image tag from build-docker.sh or set it manually
+      #     IMAGE_NAME="ghcr.io/${{ github.repository_owner }}/${{ github.repository }}"
+      #     docker push "$IMAGE_NAME"
