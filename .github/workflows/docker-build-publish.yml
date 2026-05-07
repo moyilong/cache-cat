@@ -52,12 +52,12 @@ jobs:
       - name: Build X86-64
         run: |
           cargo zigbuild --release --target x86_64-unknown-linux-musl
-          cp dist/x86_64-unknown-linux-musl/cache_cat dist/cache_cat-x86_64
+          cp dist/x86_64-unknown-linux-musl/release/cache_cat dist/cache_cat-x86_64
       
       - name: Build AARCH64
         run: |
           cargo zigbuild --release --target aarch64-unknown-linux-musl
-          cp dist/aarch64-unknown-linux-musl/cache_cat dist/cache_cat-aarch64
+          cp dist/aarch64-unknown-linux-musl/release/cache_cat dist/cache_cat-aarch64
 
       - name: Upload to GitHub Release
         uses: softprops/action-gh-release@v2
