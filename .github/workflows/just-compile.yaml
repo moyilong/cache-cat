@@ -2,9 +2,7 @@ name: Build and Artifacts
 
 on:
   workflow_dispatch:
-  push:
-    tags:
-      - "v*"
+  workflow_call:
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
