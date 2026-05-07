@@ -38,13 +38,13 @@ jobs:
       - name: Build
         run: |
           mkdir -p dist
-          
+
           build()
           {
             cargo zigbuild --release --target $1
-            cp target/$1/release/cache_cat dist/cache_cat-$1
+            cp -v target/$1/release/cache_cat dist/cache_cat-$1
             mkdir -p $(dirname dist-docker/$2)
-            cp target/$1/release/cache_cat dist-docker/$2
+            cp -v target/$1/release/cache_cat dist-docker/$2/cache_cat
           }
 
           build x86_64-unknown-linux-musl linux/amd64
