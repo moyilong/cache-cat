@@ -32,8 +32,8 @@ jobs:
 
     - name: Run build-docker.sh
       run: |
-        chmod +x scripts/build-docker.sh
-        PUSH_IMAGE="ghcr.io/${{ github.repository_owner }}/${{ github.repository }}" ./scripts/build-docker.sh
+        PUSH_IMAGE="ghcr.io/${{ github.repository_owner }}/${{ github.repository }}" \
+          bash scripts/build-docker.sh
 
     - name: Push Docker image to GHCR
       run: |

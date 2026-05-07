@@ -4,7 +4,7 @@
 DOCKER_TARGETS="linux/amd64"
 TARGET_IMAGE="cache-cat-test:latest"
 
-./scripts/build-multitarget.sh ${DOCKER_TARGETS}
+bash ./scripts/build-multitarget.sh ${DOCKER_TARGETS}
 
 docker buildx build --load \
     --platform $(echo $DOCKER_TARGETS| tr ' ' ',') \
