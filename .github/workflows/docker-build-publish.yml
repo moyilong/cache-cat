@@ -40,12 +40,34 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Set Docker tags
+        id: docker_tags
+        shell: bash
+        run: |
+          if [[ "${GITHUB_REF}" == "refs/heads/master" ]]; then
+            {
+              echo "tags<<EOF"
+              echo "ghcr.io/${{ github.repository_owner }}/${{ github.repository }}:nighty"
+              echo "EOF"
+            } >> "$GITHUB_OUTPUT"
 
+          elif [[ "${GITHUB_REF}" =~ ^refs/tags/(v[0-9]+\.[0-9]+\.[0-9]+)$ ]]; then
+            VERSION="${BASH_REMATCH[1]}"
+            {
+              echo "tags<<EOF"
+              echo "ghcr.io/${{ github.repository_owner }}/${{ github.repository }}:latest"
+              echo "ghcr.io/${{ github.repository_owner }}/${{ github.repository }}:${VERSION}"
+              echo "EOF"
+            } >> "$GITHUB_OUTPUT"
+
+          else
+            echo "Unsupported ref: ${GITHUB_REF}"
+            exit 1
+          fi
       - name: Build docker and push to GHCR
         uses: docker/build-push-action@v7
         with:
           context: .
           push: true
           platforms: linux/amd64, linux/arm64/v8
-          tags: |
-            ghcr.io/${{ github.repository_owner }}/${{ github.repository }}
+          tags: ${{ steps.docker_tags.outputs.tags }}
