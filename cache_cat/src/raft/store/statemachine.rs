@@ -1,3 +1,4 @@
+use crate::node::parsed_config::ParsedConfig;
 use crate::protocol::NO_EXPIRATION;
 use crate::protocol::key::del::DelParams;
 use crate::protocol::key::rename::RenameParams;
@@ -95,7 +96,11 @@ impl RaftSnapshotBuilder<TypeConfig> for StateMachineStore {
 }
 
 impl StateMachineStore {
-    pub async fn new(path: PathBuf, node_id: NodeId) -> Result<StateMachineStore, io::Error> {
+    pub async fn new(
+        config: ParsedConfig,
+        path: PathBuf,
+        node_id: NodeId,
+    ) -> Result<StateMachineStore, io::Error> {
         let cache = MyCache::new();
         let mut sm = Self {
             data: StateMachineData {
@@ -151,7 +156,7 @@ impl RaftStateMachine<TypeConfig> for StateMachineStore {
         let mut guard;
         let update_type = if raft_meta.snapshot_state {
             guard = self.data.incremental_operation_queue.lock().await;
-            &mut UpdateType::Snapshot(&mut guard,0)
+            &mut UpdateType::Snapshot(&mut guard, 0)
         } else {
             &mut UpdateType::None
         };
@@ -159,7 +164,10 @@ impl RaftStateMachine<TypeConfig> for StateMachineStore {
             raft_meta.last_applied_log_id = Some(entry.log_id);
             let st = &self.data.kvs;
             let response = match entry.payload {
-                EntryPayload::Blank => Value::ok(),
+                EntryPayload::Blank => {
+                    st.cache.run_pending_tasks();
+                    Value::ok()
+                }
                 EntryPayload::Normal(req) => match req {
                     Request::Base(time, base) => {
                         let write_clock = st.set_write_clock(time);
@@ -171,6 +179,7 @@ impl RaftStateMachine<TypeConfig> for StateMachineStore {
                             _ => {}
                         }
                         match base {
+                            BaseOperation::None => Value::ok(),
                             BaseOperation::Set(set) => {
                                 st.set(set, update_type);
                                 Value::ok()
@@ -252,6 +261,7 @@ impl RaftStateMachine<TypeConfig> for StateMachineStore {
         for atomic_request in res.1 {
             let update_type = &mut UpdateType::CAS(atomic_request.version);
             match atomic_request.request {
+                BaseOperation::None => {}
                 BaseOperation::Set(set) => {
                     self.data.kvs.set(set, update_type);
                 }
