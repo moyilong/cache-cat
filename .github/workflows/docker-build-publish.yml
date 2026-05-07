@@ -35,59 +35,48 @@ jobs:
       - name: Install cargo-zigbuild
         run: cargo install cargo-zigbuild --locked
 
-      - name: Set version
-        id: version
+      - name: Build
         run: |
-          if [ "${GITHUB_REF_TYPE}" = "tag" ]; then
-            VERSION="${GITHUB_REF_NAME}"
-          elif [ "${GITHUB_REF_TYPE}" = "branch" ] && [ "${GITHUB_REF_NAME}" = "master" ]; then
-            VERSION="nightly"
-          else
-            VERSION="${GITHUB_REF_NAME}"
-          fi
+          mkdir -p dist
+          mkdir -p dist-docker/linux
 
-          echo "VERSION=$VERSION" >> $GITHUB_ENV
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          build()
+          {
+            cargo zigbuild --release --target $1
+            cp target/$1/release/cache_cat dist/cache_cat-$1
+            mkdir -p $(dirname dist-docker/$2)
+            cp target/$1/release/cache_cat dist-docker/$2
+          }
 
-      - run: mkdir -p dist
-
-      - name: Build X86-64
-        run: |
-          cargo zigbuild --release --target x86_64-unknown-linux-musl
-          cp target/x86_64-unknown-linux-musl/release/cache_cat dist/cache_cat-x86_64
-
-      - name: Build AARCH64
-        run: |
-          cargo zigbuild --release --target aarch64-unknown-linux-musl
-          cp target/aarch64-unknown-linux-musl/release/cache_cat dist/cache_cat-aarch64
+          build x86_64-unknown-linux-musl linux/amd64
+          build aarch64-unknown-linux-musl linux/arm64/v8
 
       - name: Upload to GitHub Release
         uses: softprops/action-gh-release@v2
         if: github.ref_type == 'tag'
         with:
           files: dist/*
-      # - name: Set up QEMU
-      #   uses: docker/setup-qemu-action@v2
-      #   with:
-      #     platforms: all
 
-      # - name: Set up Docker Buildx
-      #   uses: docker/setup-buildx-action@v2
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v2
+        with:
+          platforms: all
 
-      # - name: Log in to GHCR
-      #   uses: docker/login-action@v2
-      #   with:
-      #     registry: ghcr.io
-      #     username: ${{ github.actor }}
-      #     password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
 
-      # - name: Run build-docker.sh
-      #   run: |
-      #     PUSH_IMAGE="ghcr.io/${{ github.repository_owner }}/${{ github.repository }}" \
-      #       bash scripts/build-docker.sh
+      - name: Log in to GHCR
+        uses: docker/login-action@v2
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
-      # - name: Push Docker image to GHCR
-      #   run: |
-      #     # Extract image tag from build-docker.sh or set it manually
-      #     IMAGE_NAME="ghcr.io/${{ github.repository_owner }}/${{ github.repository }}"
-      #     docker push "$IMAGE_NAME"
+      - name: Build docker and push to GHCR
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          push: true
+          platforms: linux/amd64, linux/arm64/v8
+          tags: |
+            ghcr.io/${{ github.repository_owner }}/${{ github.repository }}
