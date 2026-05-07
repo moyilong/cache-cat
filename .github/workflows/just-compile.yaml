@@ -51,4 +51,4 @@ jobs:
         with:
           name: build-output
           path: |
-            dist/cache_cat-*
+            dist/
