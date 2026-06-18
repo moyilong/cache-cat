@@ -8,17 +8,16 @@ use crate::protocol::command::{Client, Command};
 use crate::protocol::raft_command::{RaftCommand, ReadRaftCommand};
 use crate::raft::network::redis_server::RedisServer;
 use crate::raft::types::core::response_value::Value;
-use crate::raft::types::core::value_object::{HashValue, ValueObject};
 use crate::raft::types::entry::read_operation::ReadOperation;
-use crate::raft::types::entry::request::Operation;
 use async_trait::async_trait;
+use bytes::Bytes;
 use serde::{Deserialize, Serialize};
 use std::fmt::{Display, Formatter};
 
 /// Parsed HVALS arguments
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct HValsParams {
-    pub key: Vec<u8>,
+    pub key: Bytes,
 }
 
 impl Display for HValsParams {
@@ -44,7 +43,7 @@ impl HValsCommand {
             _ => return Err(ProtocolError::InvalidArgument("key")),
         };
 
-        Ok(HValsParams { key })
+        Ok(HValsParams { key: key.into() })
     }
 }
 

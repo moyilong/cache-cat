@@ -5,14 +5,19 @@ use crate::raft::network::redis_server::RedisServer;
 use crate::raft::types::core::response_value::Value;
 use crate::raft::types::entry::read_operation::ReadOperation;
 use async_trait::async_trait;
+use bytes::Bytes;
 use serde::{Deserialize, Serialize};
 use std::fmt::Display;
+use crate::raft::types::core::mocha::mocha::MyValue;
+use crate::raft::types::core::mocha::read_command::ReadCommand;
+use crate::raft::types::core::value_object::ValueObject;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GetBitParams {
-    pub key: Vec<u8>,
+    pub key: Bytes,
     pub offset: u64,
 }
+
 impl Display for GetBitParams {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
@@ -22,7 +27,32 @@ impl Display for GetBitParams {
         )
     }
 }
+impl ReadCommand for GetBitParams {
+    fn key(&self) -> &Bytes {
+        &self.key
+    }
 
+    fn execute(&self, value: Option<MyValue>) -> Value {
+        let bytes: Vec<u8> = match value {
+            None => return Value::Integer(0),
+            Some(value) => match value.data {
+                ValueObject::String(s) => s.to_vec(),
+                ValueObject::Int(i) => i.to_string().into_bytes(),
+                _ => return ProtocolError::WrongType.into(),
+            },
+        };
+        let offset = self.offset; // u64
+        let byte_index = (offset / 8) as usize;
+        let bit_offset = (offset % 8) as usize;
+        let bit = if byte_index >= bytes.len() {
+            0
+        } else {
+            let byte = bytes[byte_index];
+            ((byte >> (7 - bit_offset)) & 1) as i64
+        };
+        Value::Integer(bit)
+    }
+}
 pub struct GetBitCommand;
 
 impl GetBitCommand {
@@ -72,7 +102,10 @@ impl GetBitCommand {
             }
         };
 
-        Ok(GetBitParams { key, offset })
+        Ok(GetBitParams {
+            key: key.into(),
+            offset,
+        })
     }
 }
 

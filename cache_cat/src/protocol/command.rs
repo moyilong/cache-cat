@@ -5,6 +5,7 @@ use crate::protocol::bitmap::setbit::SetBitCommand;
 use crate::protocol::connection::auth::AuthCommand;
 use crate::protocol::connection::client::client::ClientCommand;
 use crate::protocol::connection::echo::EchoCommand;
+use crate::protocol::connection::hello::HelloCommand;
 use crate::protocol::connection::ping::PingCommand;
 use crate::protocol::connection::quit::QuitCommand;
 use crate::protocol::connection::select::SelectCommand;
@@ -64,8 +65,8 @@ use crate::raft::types::core::response_value::Value;
 use crate::raft::types::entry::request::Operation;
 use crate::utils::now_ms;
 use async_trait::async_trait;
+use futures::SinkExt;
 use futures::StreamExt;
-use futures::{SinkExt, Stream};
 use std::collections::HashMap;
 use std::fmt;
 use std::fmt::{Display, Formatter};
@@ -74,6 +75,8 @@ use tokio::select;
 use tokio::sync::watch;
 use tokio_util::codec::Framed;
 use tracing::{error, warn};
+use crate::protocol::key::pexpire::PExpireCommand;
+use crate::protocol::list::rpush::RPushCommand;
 
 #[async_trait]
 pub trait Command: Send + Sync {
@@ -228,6 +231,7 @@ impl CommandFactory {
         factory.register("QUIT", QuitCommand);
         factory.register("AUTH", AuthCommand);
         factory.register("CLIENT", ClientCommand::new());
+        factory.register("HELLO", HelloCommand);
         // Register data commands
         factory.register("GET", GetCommand);
         factory.register("SET", SetCommand);
@@ -238,6 +242,7 @@ impl CommandFactory {
         factory.register("MGET", MgetCommand);
         factory.register("APPEND", AppendCommand);
         factory.register("EXPIRE", ExpireCommand);
+        factory.register("PEXPIRE", PExpireCommand);
         factory.register("EXISTS", ExistsCommand);
         factory.register("PERSIST", PersistCommand);
         factory.register("RENAME", RenameCommand);
@@ -248,6 +253,7 @@ impl CommandFactory {
         factory.register("STRLEN", StrLenCommand);
         // List commands
         factory.register("LPUSH", LPushCommand);
+        factory.register("RPUSH", RPushCommand);
         factory.register("LRANGE", LRangeCommand);
         factory.register("LLEN", LLenCommand);
         // Hash commands

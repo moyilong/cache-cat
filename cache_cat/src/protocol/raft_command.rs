@@ -12,12 +12,14 @@ use crate::protocol::key::del::DelCommand;
 use crate::protocol::key::exists::ExistsCommand;
 use crate::protocol::key::expire::ExpireCommand;
 use crate::protocol::key::persist::PersistCommand;
+use crate::protocol::key::pexpire::PExpireCommand;
 use crate::protocol::key::rename::RenameCommand;
 use crate::protocol::key::renamenx::RenameNxCommand;
 use crate::protocol::list::llen::LLenCommand;
 use crate::protocol::list::lpop::LPopCommand;
 use crate::protocol::list::lpush::LPushCommand;
 use crate::protocol::list::lrange::LRangeCommand;
+use crate::protocol::list::rpush::RPushCommand;
 use crate::protocol::lua::eval::EvalCommand;
 use crate::protocol::set::sadd::SAddCommand;
 use crate::protocol::set::smembers::SMembersCommand;
@@ -98,6 +100,7 @@ impl RaftCommandFactory {
         factory.register("LPUSH", LPushCommand);
         factory.register("LRANGE", LRangeCommand);
         factory.register("EXPIRE", ExpireCommand);
+        factory.register("PEXPIRE", PExpireCommand);
         factory.register("APPEND", AppendCommand);
         factory.register("HSET", HSetCommand);
         factory.register("HGET", HGetCommand);
@@ -125,6 +128,8 @@ impl RaftCommandFactory {
         factory.register("STRLEN", StrLenCommand);
         factory.register("HVALS", HValsCommand);
         factory.register("LLEN", LLenCommand);
+        factory.register("RPUSH", RPushCommand);
+
         factory
     }
 

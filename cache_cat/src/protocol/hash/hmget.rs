@@ -11,13 +11,17 @@ use crate::raft::types::core::response_value::Value;
 use crate::raft::types::entry::read_operation::ReadOperation;
 use crate::raft::types::entry::request::Operation;
 use async_trait::async_trait;
+use bytes::Bytes;
 use serde::{Deserialize, Serialize};
 use std::fmt::{Display, Formatter};
+use crate::raft::types::core::mocha::mocha::MyValue;
+use crate::raft::types::core::mocha::read_command::ReadCommand;
+use crate::raft::types::core::value_object::{HashValue, ValueObject};
 
 /// Parsed HMGET arguments
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct HMGetParams {
-    pub key: Vec<u8>,
+    pub key: Bytes,
     pub fields: Vec<Vec<u8>>,
 }
 
@@ -36,6 +40,40 @@ impl Display for HMGetParams {
         )
     }
 }
+impl ReadCommand for HMGetParams {
+    fn key(&self) -> &Bytes {
+        &self.key
+    }
+
+    fn execute(&self, value: Option<MyValue>) -> Value {
+        match value {
+            None => Value::BulkString(None),
+            Some(v) => match v.data {
+                ValueObject::Hash(map) => {
+                    let guard = map.lock();
+                    let results: Vec<Value> = self
+                        .fields
+                        .iter()
+                        .map(|field| match guard.get(field) {
+                            None => Value::BulkString(None),
+                            Some(value) => match value {
+                                HashValue::Str(str) => {
+                                    Value::BulkString(Some(str.as_ref().clone()))
+                                }
+                                HashValue::Int(int) => {
+                                    Value::BulkString(Some(int.to_string().as_bytes().to_vec()))
+                                }
+                            },
+                        })
+                        .collect();
+                    Value::Array(Some(results))
+                }
+                _ => ProtocolError::WrongType.into(),
+            },
+        }
+    }
+}
+
 
 /// HMGET command handler
 pub struct HMGetCommand;
@@ -67,7 +105,10 @@ impl HMGetCommand {
             fields.push(field);
         }
 
-        Ok(HMGetParams { key, fields })
+        Ok(HMGetParams {
+            key: key.into(),
+            fields,
+        })
     }
 }
 
@@ -93,8 +134,9 @@ impl Command for HMGetCommand {
 
         // Parse arguments
         let params = Self::parse_args(items)?;
-        server.app.read(ReadOperation::HMGet(params), client.db_number).await
-
-
+        server
+            .app
+            .read(ReadOperation::HMGet(params), client.db_number)
+            .await
     }
 }

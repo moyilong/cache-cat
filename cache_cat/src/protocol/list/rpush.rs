@@ -1,5 +1,18 @@
+//! RPUSH command implementation
+//!
+//! RPUSH key element [element ...]
+//! Insert all the specified values at the tail of the list stored at key.
+//! If key does not exist, it is created as empty list before performing the push.
+//! When key holds a value that is not a list, an error is returned.
+//!
+//! Returns:
+//! - The length of the list after the push operations (integer reply)
+//!
+//! Note: Elements are inserted one after the other from leftmost to rightmost.
+//! `RPUSH mylist a b c` results in `[a, b, c]`.
+
 use crate::error::{CacheCatError, ProtocolError};
-use crate::mocha::{EntrySnapshot, MochaOperation};
+use crate::mocha::{EntrySnapshot, ExpirePolicy, MochaOperation};
 use crate::protocol::command::{Client, Command};
 use crate::protocol::raft_command::RaftCommand;
 use crate::raft::network::redis_server::RedisServer;
@@ -8,26 +21,27 @@ use crate::raft::types::core::mocha::mocha::MyValue;
 use crate::raft::types::core::response_value::Value;
 use crate::raft::types::core::value_object::ValueObject;
 use crate::raft::types::entry::bae_operation::BaseOperation;
-use crate::raft::types::entry::bae_operation::BaseOperation::SRem;
+use crate::raft::types::entry::bae_operation::BaseOperation::RPush;
 use crate::raft::types::entry::request::Operation;
 use async_trait::async_trait;
 use bytes::Bytes;
+use parking_lot::lock_api::Mutex;
 use serde::{Deserialize, Serialize};
+use std::collections::VecDeque;
 use std::fmt;
 use std::fmt::Display;
 use std::sync::Arc;
 
-struct SRemArgs {
-    key: Bytes,
-    members: Vec<Vec<u8>>,
-}
+/// RPUSH command handler
+pub struct RPushCommand;
 
-pub struct SRemCommand;
-
-impl SRemCommand {
-    fn parse_args(items: &[Value]) -> Result<SRemArgs, ProtocolError> {
+impl RPushCommand {
+    /// Parse arguments from RESP items
+    /// Format: RPUSH key element [element ...]
+    fn parse_args(items: &[Value]) -> Result<RPushArgs, ProtocolError> {
+        // Minimum: RPUSH key element
         if items.len() < 3 {
-            return Err(ProtocolError::WrongArgCount("srem"));
+            return Err(ProtocolError::WrongArgCount("rpush"));
         }
 
         // Parse key
@@ -37,91 +51,93 @@ impl SRemCommand {
             _ => return Err(ProtocolError::InvalidArgument("key")),
         };
 
-        // Parse members
-        let mut members = Vec::with_capacity(items.len() - 2);
+        // Parse elements
+        let mut elements = Vec::with_capacity(items.len() - 2);
 
         for item in &items[2..] {
-            let member = match item {
+            let elem = match item {
                 Value::BulkString(Some(data)) => data.clone(),
                 Value::SimpleString(s) => s.as_bytes().to_vec(),
-                _ => return Err(ProtocolError::InvalidArgument("member")),
+                _ => return Err(ProtocolError::InvalidArgument("element")),
             };
 
-            members.push(member);
+            elements.push(elem);
         }
 
-        Ok(SRemArgs {
+        Ok(RPushArgs {
             key: key.into(),
-            members,
+            elements,
         })
     }
 }
 
-impl RaftCommand for SRemCommand {
+/// Parsed RPUSH arguments
+struct RPushArgs {
+    key: Bytes,
+    elements: Vec<Vec<u8>>,
+}
+
+impl RaftCommand for RPushCommand {
     fn raft_request(&self, items: &[Value]) -> Result<Operation, ProtocolError> {
         let params = Self::parse_args(items)?;
 
         let mut elements = Vec::new();
-
-        for v in params.members {
+        for v in params.elements {
             elements.push(Arc::new(v));
         }
 
-        Ok(Operation::Base(SRem(SRemReq {
+        Ok(Operation::Base(RPush(RPushReq {
             key: params.key,
-            members: elements,
+            elements,
         })))
     }
 }
 
 #[async_trait]
-impl Command for SRemCommand {
+impl Command for RPushCommand {
     async fn execute(
         &self,
         client: &mut Client,
         items: &[Value],
         server: &RedisServer,
     ) -> Result<Value, CacheCatError> {
-        // Transaction mode
+        // MULTI transaction support
         if let Some(vec) = client.transaction_queue.as_mut() {
             vec.push(self.raft_request(items)?);
-
             return Ok(Value::SimpleString(String::from("QUEUED")));
         }
 
-        // Build raft operation
+        // Execute through Raft
         let operation = self.raft_request(items)?;
-
-        // Execute write
         let value = server.app.write(operation, client.db_number).await?;
 
         Ok(value)
     }
 }
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct SRemReq {
+pub struct RPushReq {
     pub key: Bytes,
-    pub members: Vec<Arc<Vec<u8>>>,
+    pub elements: Vec<Arc<Vec<u8>>>,
 }
 
-impl Display for SRemReq {
+impl Display for RPushReq {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(
             f,
-            "SRemReq {{ key: {}, fields: {:?} }}",
+            "RPushReq {{ key: {}, elements: {:?} }}",
             String::from_utf8_lossy(&self.key),
-            self.members
+            self.elements
         )
     }
 }
 
-impl ComputeCommand for SRemReq {
+impl ComputeCommand for RPushReq {
     fn key(&self) -> &Bytes {
         &self.key
     }
 
     fn into_base_op(self) -> BaseOperation {
-        BaseOperation::SRem(self.clone())
+        BaseOperation::RPush(self.clone())
     }
 
     fn mutate(
@@ -130,41 +146,38 @@ impl ComputeCommand for SRemReq {
         _write_clock: u64,
     ) -> (MochaOperation<MyValue>, Value) {
         match &entry.value.data {
-            ValueObject::Set(set) => {
-                let mut set = set.lock();
-                let mut deleted_count = 0;
-                for member in &self.members {
-                    if set.remove(member) {
-                        deleted_count += 1;
+            ValueObject::List(data_arc) => {
+                let len = {
+                    let mut list = data_arc.lock();
+                    for element in self.elements {
+                        list.push_back(element);
                     }
-                }
-                let is_empty = set.is_empty();
-                drop(set);
-
-                if deleted_count == 0 {
-                    return (MochaOperation::Abort, Value::Integer(0));
-                }
-                if is_empty {
-                    return (MochaOperation::Remove, Value::Integer(deleted_count));
-                }
+                    list.len() as i64
+                };
                 (
                     MochaOperation::Insert {
                         value: entry.value.clone(),
                         expire: entry.get_expire_policy(),
                     },
-                    Value::Integer(deleted_count),
+                    Value::Integer(len),
                 )
             }
             _ => (
                 MochaOperation::Abort,
-                Value::Error(
-                    "WRONGTYPE Operation against a key holding the wrong kind of value".into(),
-                ),
+                Value::Error("Key exists but is not a List".to_string()),
             ),
         }
     }
 
     fn init(self) -> (MochaOperation<MyValue>, Value) {
-        (MochaOperation::Abort, Value::Integer(0))
+        let deque: VecDeque<_> = VecDeque::from(self.elements);
+        let len = deque.len() as i64;
+        (
+            MochaOperation::Insert {
+                value: MyValue::new(ValueObject::List(Arc::new(Mutex::new(deque)))),
+                expire: ExpirePolicy::Persistent,
+            },
+            Value::Integer(len),
+        )
     }
 }

@@ -1,181 +1,15 @@
-use crate::error::ProtocolError;
-use crate::mocha::{EntrySnapshot, ExpirePolicy, MochaOperation};
 use crate::protocol::NO_EXPIRATION;
+use crate::protocol::string::append::AppendReq;
 use crate::protocol::string::get::GetParams;
+use crate::protocol::string::incr::IncrReq;
+use crate::protocol::string::len::StrLenParams;
 use crate::protocol::string::mget::MgetParams;
 use crate::protocol::string::mset::MsetParams;
-use crate::protocol::string::set::{Expiration, SetMode, SetParams};
-use crate::raft::types::core::mocha::cas::ComputeCommand;
-use crate::raft::types::core::mocha::mocha::{MyCache, MyValue, Update, UpdateType};
+use crate::protocol::string::set::{Expiration, SetMode, SetParams, SetReq};
+use crate::raft::types::core::mocha::mocha::{MyCache, Update};
 use crate::raft::types::core::response_value::Value;
 use crate::raft::types::core::value_object::ValueObject;
-use crate::raft::types::entry::bae_operation::{
-    AppendReq, BaseOperation, IncrReq, SetBitReq, SetReq,
-};
-use crate::utils::parse_i64;
 use std::sync::Arc;
-use crate::protocol::string::len::StrLenParams;
-
-impl ComputeCommand for SetReq {
-    fn key(&self) -> Arc<Vec<u8>> {
-        self.key.clone()
-    }
-
-    fn into_base_op(self) -> BaseOperation {
-        BaseOperation::Set(self.clone())
-    }
-
-    fn mutate(
-        self,
-        entry: EntrySnapshot<MyValue>,
-        _write_clock: u64,
-    ) -> (MochaOperation<MyValue>, Value) {
-        let new_version = entry.value.version + 1;
-        let data = match parse_i64(&self.value) {
-            None => ValueObject::String(self.value.clone()),
-            Some(v) => ValueObject::Int(v),
-        };
-        let expire = if self.ex_time == 0 {
-            ExpirePolicy::Persistent
-        } else {
-            ExpirePolicy::Absolute(self.ex_time)
-        };
-        let new_value = MyValue {
-            version: new_version,
-            data,
-        };
-        (
-            MochaOperation::Insert {
-                value: new_value,
-                expire,
-            },
-            Value::ok(),
-        )
-    }
-
-    fn init(self) -> (MochaOperation<MyValue>, Value) {
-        let data = match parse_i64(&self.value) {
-            None => ValueObject::String(self.value.clone()),
-            Some(v) => ValueObject::Int(v),
-        };
-        let expire = if self.ex_time == 0 {
-            ExpirePolicy::Persistent
-        } else {
-            ExpirePolicy::Absolute(self.ex_time)
-        };
-        let value = MyValue { version: 1, data };
-        (MochaOperation::Insert { value, expire }, Value::ok())
-    }
-}
-
-impl ComputeCommand for IncrReq {
-    fn key(&self) -> Arc<Vec<u8>> {
-        self.key.clone()
-    }
-
-    fn into_base_op(self) -> BaseOperation {
-        BaseOperation::Incr(self.clone())
-    }
-
-    fn mutate(
-        self,
-        entry: EntrySnapshot<MyValue>,
-        write_clock: u64,
-    ) -> (MochaOperation<MyValue>, Value) {
-        let (result, value) = match &entry.value.data {
-            ValueObject::Int(n) => {
-                let num = n + self.value;
-                (ValueObject::Int(num), Value::Integer(num))
-            }
-            ValueObject::String(s) => {
-                if let Some(v) = parse_i64(&s) {
-                    let new_val = v + self.value;
-                    (ValueObject::Int(new_val), Value::Integer(new_val))
-                } else {
-                    return (
-                        MochaOperation::Abort,
-                        Value::Error("Value is not an integer".to_string()),
-                    );
-                }
-            }
-            _ => {
-                return (
-                    MochaOperation::Abort,
-                    Value::Error("Key exists but is not an Integer".to_string()),
-                );
-            }
-        };
-        (
-            MochaOperation::Insert {
-                value: MyValue::new(result),
-                expire: entry.get_expire_policy(),
-            },
-            value,
-        )
-    }
-
-    fn init(self) -> (MochaOperation<MyValue>, Value) {
-        let v = self.value;
-        (
-            MochaOperation::Insert {
-                value: MyValue::new(ValueObject::Int(v)),
-                expire: ExpirePolicy::Persistent,
-            },
-            Value::Integer(v),
-        )
-    }
-}
-
-impl ComputeCommand for AppendReq {
-    fn key(&self) -> Arc<Vec<u8>> {
-        self.key.clone()
-    }
-
-    fn into_base_op(self) -> BaseOperation {
-        BaseOperation::Append(self.clone())
-    }
-
-    fn mutate(
-        self,
-        entry: EntrySnapshot<MyValue>,
-        write_clock: u64,
-    ) -> (MochaOperation<MyValue>, Value) {
-        match &entry.value.data {
-            ValueObject::String(data_arc) => {
-                // 构造新的字符串：原内容 + 追加内容
-                let mut new_buf = (**data_arc).clone();
-                new_buf.extend_from_slice(&self.value);
-                let len = new_buf.len() as i64;
-                let new_value = MyValue::new(ValueObject::String(Arc::new(new_buf)));
-                (
-                    MochaOperation::Insert {
-                        value: new_value,
-                        expire: entry.get_expire_policy(),
-                    },
-                    Value::Integer(len),
-                )
-            }
-            _ => (
-                MochaOperation::Abort,
-                Value::Error("Key exists but is not a String".to_string()),
-            ),
-        }
-    }
-
-    fn init(self) -> (MochaOperation<MyValue>, Value) {
-        let len = self.value.len() as i64;
-        (
-            MochaOperation::Insert {
-                value: MyValue::new(ValueObject::String(self.value)),
-                expire: ExpirePolicy::Persistent,
-            },
-            Value::Integer(len),
-        )
-    }
-}
-
-
-
 
 impl MyCache {
     pub fn redis_mset(&self, params: MsetParams, update: &mut Update<'_>, external: bool) -> Value {
@@ -184,8 +18,8 @@ impl MyCache {
         }
         for pair in params.pairs {
             let set = SetReq {
-                key: Arc::from(pair.0),
-                value: Arc::from(pair.1),
+                key: pair.0,
+                value: Arc::new(pair.1.to_vec()),
                 ex_time: 0,
             };
             self.set(set, update);
@@ -212,7 +46,7 @@ impl MyCache {
                     Ok(cache) => cache,
                 };
                 // Read existing value to get its expiration time
-                match cache.get_entry(&params.key) {
+                match cache.mocha.get_entry(&params.key) {
                     None => NO_EXPIRATION,
                     Some(value) => {
                         let ttl_ms = value.expire_at.unwrap_or(0);
@@ -236,17 +70,19 @@ impl MyCache {
             },
             None => NO_EXPIRATION, // No expiration
         };
-        
+
         if matches!(existing_key, ExistingKey::None) && (params.mode.is_some() || params.get) {
             let cache = match self.get_cache(update.db_number) {
                 Err(err) => return err,
                 Ok(cache) => cache,
             };
-            match cache.get_entry(&params.key) {
+            match cache.mocha.get_entry(&params.key) {
                 None => { /* remains None */ }
                 Some(value) => {
                     existing_key = match value.value.data {
-                        ValueObject::Int(v) => ExistingKey::Data(Arc::from(v.to_string().into_bytes())),
+                        ValueObject::Int(v) => {
+                            ExistingKey::Data(Arc::from(v.to_string().into_bytes()))
+                        }
                         ValueObject::String(v) => ExistingKey::Data(v),
                         _ => ExistingKey::OtherType,
                     };
@@ -291,7 +127,7 @@ impl MyCache {
             }
         }
         let set = SetReq {
-            key: Arc::from(params.key),
+            key: params.key,
             value: Arc::from(params.value),
             ex_time: expires_at,
         };
@@ -307,65 +143,17 @@ impl MyCache {
         }
     }
 
-    pub fn m_get(&self, param: MgetParams, db_number: u16) -> Value {
-        let cache = match self.get_cache(db_number) {
-            Err(err) => return err,
-            Ok(cache) => cache,
-        };
-        let mut results = Vec::with_capacity(param.keys.len());
-        for key in param.keys {
-            results.push(match cache.get(&key) {
-                None => Value::BulkString(None),
-                Some(v) => match v.data {
-                    ValueObject::Int(int_value) => {
-                        Value::BulkString(Some(int_value.to_string().into_bytes()))
-                    }
-                    ValueObject::String(str_value) => {
-                        Value::BulkString(Some(str_value.as_ref().clone()))
-                    }
-                    _ => ProtocolError::WrongType.into(),
-                },
-            });
-        }
-        Value::Array(Some(results))
+    pub fn m_get(&self, param: MgetParams, db_number: u16, read_clock: Option<u64>) -> Value {
+        self.execute_multi_read(param, db_number, read_clock)
     }
 
-    pub fn get(&self, param: GetParams, db_number: u16) -> Value {
-        let cache = match self.get_cache(db_number) {
-            Err(err) => return err,
-            Ok(cache) => cache,
-        };
-        match cache.get(&param.key) {
-            None => Value::BulkString(None),
-            Some(v) => match v.data {
-                ValueObject::Int(int_value) => {
-                    Value::BulkString(Some(int_value.to_string().into_bytes()))
-                }
-                ValueObject::String(str_value) => {
-                    Value::BulkString(Some(str_value.as_ref().clone()))
-                }
-                _ => ProtocolError::WrongType.into(),
-            },
-        }
+    pub fn get(&self, param: GetParams, db_number: u16, read_clock: Option<u64>) -> Value {
+        self.execute_read(param, db_number, read_clock)
     }
 
-
-    pub fn str_len(&self, param: StrLenParams, db_number: u16) -> Value {
-        let cache = match self.get_cache(db_number) {
-            Err(err) => return err,
-            Ok(cache) => cache,
-        };
-        let len = match cache.get(&param.key) {
-            None => 0,
-            Some(v) => match v.data {
-                ValueObject::String(ref bytes) => bytes.len(),
-                ValueObject::Int(ref i) => i.to_string().len(),
-                _ => return (ProtocolError::WrongType.into()),
-            },
-        };
-        (Value::Integer(len as i64))
+    pub fn str_len(&self, param: StrLenParams, db_number: u16, read_clock: Option<u64>) -> Value {
+        self.execute_read(param, db_number, read_clock)
     }
-
 
     pub fn set(&self, param: SetReq, update: &mut Update) -> Value {
         self.execute_compute(param, update)
@@ -374,6 +162,7 @@ impl MyCache {
     pub fn incr(&self, param: IncrReq, update: &mut Update) -> Value {
         self.execute_compute(param, update)
     }
+
     //如果不是string就报错，如果是string就append，如果没有值就创建一个
     pub fn append(&self, param: AppendReq, update: &mut Update) -> Value {
         self.execute_compute(param, update)

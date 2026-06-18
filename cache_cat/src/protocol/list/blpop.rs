@@ -14,8 +14,9 @@ use crate::protocol::raft_command::RaftCommand;
 use crate::raft::network::redis_server::RedisServer;
 use crate::raft::types::core::response_value::Value;
 use crate::raft::types::entry::request::Operation;
-use crate::raft::types::entry::request::RedisOperation::{RedisBLPop, RedisEval};
+use crate::raft::types::entry::request::RedisOperation::RedisBLPop;
 use async_trait::async_trait;
+use bytes::Bytes;
 use serde::{Deserialize, Serialize};
 use std::fmt::{Display, Formatter};
 use tokio::sync::watch;
@@ -40,7 +41,7 @@ impl BLPopCommand {
                 Value::SimpleString(s) => s.as_bytes().to_vec(),
                 _ => return Err(ProtocolError::InvalidArgument("key")),
             };
-            keys.push(key);
+            keys.push(key.into());
         }
 
         // Parse timeout (last argument)
@@ -71,7 +72,7 @@ impl BLPopCommand {
 /// Parsed BLPOP arguments
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BLPopParams {
-    pub keys: Vec<Vec<u8>>,
+    pub keys: Vec<Bytes>,
     pub timeout: f64,
 }
 
@@ -92,20 +93,20 @@ impl RaftCommand for BLPopCommand {
 impl BlockCommand for BLPopCommand {
     async fn execute(
         &self,
-        client: &mut Client,
+        _client: &mut Client,
         items: &[Value],
-        server: &RedisServer,
+        _server: &RedisServer,
     ) -> Result<(Value, watch::Receiver<Option<Value>>), CacheCatError> {
-        let params = BLPopCommand::parse_args(items)?;
+        let _params = BLPopCommand::parse_args(items)?;
 
         todo!()
     }
 
     async fn execute_during_block(
         &self,
-        client: &mut Client,
-        cmd: &ParsedCommand,
-        server: &RedisServer,
+        _client: &mut Client,
+        _cmd: &ParsedCommand,
+        _server: &RedisServer,
     ) -> Result<Value, CacheCatError> {
         todo!()
     }

@@ -3,17 +3,19 @@ use crate::protocol::command::{Client, Command};
 use crate::protocol::raft_command::{RaftCommand, ReadRaftCommand};
 use crate::raft::network::redis_server::RedisServer;
 use crate::raft::types::core::response_value::Value;
-use crate::raft::types::core::value_object::ValueObject;
 use crate::raft::types::entry::read_operation::ReadOperation;
-use crate::raft::types::entry::request::Operation;
 use async_trait::async_trait;
+use bytes::Bytes;
 use serde::{Deserialize, Serialize};
 use std::fmt::Display;
+use crate::raft::types::core::mocha::mocha::MyValue;
+use crate::raft::types::core::mocha::read_command::MultiReadCommand;
+use crate::raft::types::core::value_object::ValueObject;
 
 /// Parameters for MGET command
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MgetParams {
-    pub keys: Vec<Vec<u8>>,
+    pub keys: Vec<Bytes>,
 }
 impl Display for MgetParams {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -38,12 +40,13 @@ impl MgetParams {
                 Value::SimpleString(s) => s.as_bytes().to_vec(),
                 _ => return Err(ProtocolError::InvalidArgument("key")),
             };
-            keys.push(key);
+            keys.push(key.into());
         }
 
         Ok(MgetParams { keys })
     }
 }
+
 /// MGET command executor
 pub struct MgetCommand;
 
@@ -67,5 +70,34 @@ impl Command for MgetCommand {
         }
         let params = self.read_operation(items)?;
         server.app.multi_read(params, client.db_number).await
+    }
+}
+impl MultiReadCommand for MgetParams {
+    fn keys(&self) -> &Vec<Bytes> {
+        &self.keys
+    }
+
+    fn execute(&self, values: Vec<Option<MyValue>>) -> Value {
+        let mut results = Vec::with_capacity(values.len());
+
+        for value in values {
+            results.push(match value {
+                None => Value::BulkString(None),
+
+                Some(v) => match v.data {
+                    ValueObject::Int(int_value) => {
+                        Value::BulkString(Some(int_value.to_string().into_bytes()))
+                    }
+
+                    ValueObject::String(str_value) => {
+                        Value::BulkString(Some(str_value.as_ref().clone()))
+                    }
+
+                    _ => ProtocolError::WrongType.into(),
+                },
+            });
+        }
+
+        Value::Array(Some(results))
     }
 }

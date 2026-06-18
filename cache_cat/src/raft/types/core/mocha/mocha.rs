@@ -5,13 +5,13 @@ use crate::raft::types::core::response_value::Value;
 use crate::raft::types::core::value_object::ValueObject;
 use crate::raft::types::entry::request::AtomicRequest;
 use crate::utils::now_ms;
+use bytes::Bytes;
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
 use std::cmp::max;
 use std::option::Option;
 use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
-use std::time::Duration;
+use std::sync::atomic::{AtomicU64, Ordering};
 use tokio::sync::Mutex;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -32,8 +32,9 @@ impl MyValue {
 #[derive(Debug)]
 pub struct Database {
     // pub cache: Cache<Arc<Vec<u8>>, MyValue>,
-    pub mocha: Mocha<Arc<Vec<u8>>, MyValue>,
+    pub mocha: Mocha<Bytes, MyValue>,
 }
+
 impl Clone for Database {
     fn clone(&self) -> Self {
         Self {
@@ -56,11 +57,10 @@ pub struct MyCache {
 }
 
 impl MyCache {
-    pub fn get_cache(&self, db_number: u16) -> Result<&Mocha<Arc<Vec<u8>>, MyValue>, Value> {
-        match self.databases.get(db_number as usize) {
-            None => Err(ProtocolError::DbNotExist.into()),
-            Some(v) => Ok(&v.mocha),
-        }
+    pub fn get_cache(&self, db_number: u16) -> Result<&Database, Value> {
+        self.databases
+            .get(db_number as usize)
+            .ok_or(ProtocolError::DbNotExist.into())
     }
 
     #[inline]
@@ -115,7 +115,7 @@ impl MyCache {
     #[inline]
     pub fn get_value_with_read_clock(
         &self,
-        key: &Vec<u8>,
+        key: &[u8],
         db_number: u16,
     ) -> Result<Option<MyValue>, ProtocolError> {
         let cache = self
@@ -146,7 +146,7 @@ impl MyCache {
     #[inline]
     pub fn get_values_with_read_clock(
         &self,
-        keys: &[Vec<u8>],
+        keys: &[&[u8]],
         db_number: u16,
     ) -> Result<Vec<Option<MyValue>>, ProtocolError> {
         let cache = self
@@ -155,7 +155,7 @@ impl MyCache {
             .ok_or(ProtocolError::DbNotExist)?;
         let read_clock = self.get_and_update_read_clock();
         keys.iter()
-            .map(|key| {
+            .map(|&key| {
                 match cache.mocha.get_entry(key) {
                     None => {
                         // 用写逻辑时钟也获取不到，可能会产生写逻辑时钟在此刻推进了导致读不到数据。
@@ -179,7 +179,6 @@ impl MyCache {
             .collect()
     }
 
-
     pub fn invalidate_all(&self) {
         for db in &self.databases {
             db.mocha.clear();
@@ -192,6 +191,7 @@ pub struct Update<'a> {
     pub write_clock: u64,
     pub update_type: &'a mut UpdateType<'a>,
 }
+
 pub enum UpdateType<'a> {
     None,
     Snapshot(&'a mut Vec<AtomicRequest>),

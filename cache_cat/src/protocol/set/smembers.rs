@@ -3,18 +3,20 @@ use crate::protocol::command::{Client, Command};
 use crate::protocol::raft_command::{RaftCommand, ReadRaftCommand};
 use crate::raft::network::redis_server::RedisServer;
 use crate::raft::types::core::response_value::Value;
-use crate::raft::types::core::value_object::ValueObject;
 use crate::raft::types::entry::read_operation::ReadOperation;
-use crate::raft::types::entry::request::Operation;
 use async_trait::async_trait;
+use bytes::Bytes;
 use serde::{Deserialize, Serialize};
 use std::fmt::Display;
+use crate::raft::types::core::mocha::mocha::MyValue;
+use crate::raft::types::core::mocha::read_command::ReadCommand;
+use crate::raft::types::core::value_object::ValueObject;
 
 pub struct SMembersCommand;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SMembersParams {
-    pub key: Vec<u8>,
+    pub key: Bytes,
 }
 
 impl Display for SMembersParams {
@@ -24,6 +26,29 @@ impl Display for SMembersParams {
             "SMembersParams {{ key: {} }}",
             String::from_utf8_lossy(&self.key)
         )
+    }
+}
+
+impl ReadCommand for SMembersParams {
+    fn key(&self) -> &Bytes {
+        &self.key
+    }
+
+    fn execute(&self, value: Option<MyValue>) -> Value {
+        match value {
+            None => Value::Array(Some(vec![])),
+            Some(v) => match v.data {
+                ValueObject::Set(set) => {
+                    let guard = set.lock();
+                    let mut array = Vec::new();
+                    for member in guard.iter() {
+                        array.push(Value::BulkString(Some(member.as_ref().clone())));
+                    }
+                    Value::Array(Some(array))
+                }
+                _ => ProtocolError::WrongType.into(),
+            },
+        }
     }
 }
 
@@ -39,7 +64,7 @@ impl SMembersCommand {
             _ => return Err(ProtocolError::InvalidArgument("key")),
         };
 
-        Ok(SMembersParams { key })
+        Ok(SMembersParams { key: key.into() })
     }
 }
 

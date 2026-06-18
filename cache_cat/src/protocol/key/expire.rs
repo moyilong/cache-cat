@@ -3,12 +3,12 @@ use crate::protocol::command::{Client, Command};
 use crate::protocol::raft_command::RaftCommand;
 use crate::raft::network::redis_server::RedisServer;
 use crate::raft::types::core::response_value::Value;
-use crate::raft::types::entry::bae_operation::BaseOperation::Expire;
-use crate::raft::types::entry::bae_operation::ExpireReq;
+use crate::raft::types::entry::bae_operation::BaseOperation::PExpire;
 use crate::raft::types::entry::request::Operation;
 use async_trait::async_trait;
+use bytes::Bytes;
 use serde::{Deserialize, Serialize};
-use std::sync::Arc;
+use crate::protocol::key::pexpire::PExpireReq;
 
 /// Expire condition flags (NX, XX, GT, LT)
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -26,7 +26,7 @@ pub enum ExpireCondition {
 /// EXPIRE command parameters
 #[derive(Debug, Clone, PartialEq)]
 pub struct ExpireParams {
-    pub key: Vec<u8>,
+    pub key: Bytes,
     pub seconds: u64,
     pub condition: Option<ExpireCondition>,
 }
@@ -68,7 +68,7 @@ impl ExpireParams {
         };
 
         Ok(ExpireParams {
-            key,
+            key: key.into(),
             seconds,
             condition,
         })
@@ -91,12 +91,12 @@ pub struct ExpireCommand;
 impl RaftCommand for ExpireCommand {
     fn raft_request(&self, items: &[Value]) -> Result<Operation, ProtocolError> {
         let params = ExpireParams::parse(items)?;
-        let req = ExpireReq {
-            key: Arc::from(params.key),
+        let req = PExpireReq {
+            key: params.key,
             expires_at: params.seconds * 1000,
             condition: params.condition,
         };
-        Ok(Operation::Base(Expire(req)))
+        Ok(Operation::Base(PExpire(req)))
     }
 }
 

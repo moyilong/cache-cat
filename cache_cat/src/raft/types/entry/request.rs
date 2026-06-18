@@ -91,7 +91,7 @@ impl fmt::Display for Request {
                 BaseOperation::LPush(req) => write!(f, "LPush: {}", req),
                 BaseOperation::Del(req) => write!(f, "DEL: {}", req),
                 BaseOperation::Incr(req) => write!(f, "Incr: {}", req),
-                BaseOperation::Expire(req) => write!(f, "Expire: {}", req),
+                BaseOperation::PExpire(req) => write!(f, "Expire: {}", req),
                 BaseOperation::Append(req) => write!(f, "Append: {}", req),
                 BaseOperation::HSet(req) => write!(f, "HSet: {}", req),
                 BaseOperation::ZAdd(req) => write!(f, "ZAdd: {}", req),
@@ -103,6 +103,7 @@ impl fmt::Display for Request {
                 BaseOperation::SRem(req) => write!(f, "SRem: {}", req),
                 BaseOperation::SetBit(req) => write!(f, "SetBit: {}", req),
                 BaseOperation::LPop(req) => write!(f, "LPop: {}", req),
+                BaseOperation::RPush(req) => write!(f, "RPush: {}", req),
             },
             Operation::Redis(op) => match op {
                 RedisOperation::RedisSet(req) => write!(f, "RedisSet: {}", req),
