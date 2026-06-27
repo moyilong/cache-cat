@@ -6,6 +6,7 @@ use crate::raft::application::pub_sub::PubSub;
 use crate::raft::network::client::RpcClient;
 use crate::raft::network::network::NetworkFactory;
 use crate::raft::network::rpc::Server;
+use crate::raft::network::tls::{TlsContext, load_tls_config};
 use crate::raft::store::log_store::LogStore;
 use crate::raft::store::raft_engine::create_raft_engine;
 use crate::raft::store::statemachine::StateMachineStore;
@@ -52,7 +53,11 @@ impl RaftNode {
         let group_id = 0;
         let log_store = LogStore::new(group_id, engine.clone());
         let sm_store = StateMachineStore::new(config.clone(), path.clone(), node_id).await?;
-        let network = NetworkFactory {};
+
+        let tls_context = TlsContext::load(&config)?;
+        let network = NetworkFactory {
+            tls_connector: tls_context.connector_for_cluster(),
+        };
         let raft = openraft::Raft::new(
             node_id,
             raft_config.clone(),
@@ -62,14 +67,16 @@ impl RaftNode {
         )
         .await
         .map_err(|e| Error::internal(format!("Failed to create raft: {}", e)))?;
+
         let app = CacheCatApp {
             path,
             cluster: Cluster::new(raft, config.raft_advertise_endpoint.clone()),
             config,
-            connector: Connector::new(),
+            connector: Connector::new(tls_context.connector_for_cluster()),
             state_machine: sm_store,
             pubsub: Arc::new(PubSub::new()),
             shutdown_tx: shutdown_tx.clone(),
+            tls_context,
         };
 
         let node = Self {
@@ -166,7 +173,7 @@ impl RaftNode {
         //     forward_to_leader: 1,
         //     body: ForwardRequestBody::Join(join_req),
         // };
-        let client = RpcClient::connect(addr)
+        let client = RpcClient::connect(addr, self.app.tls_context.connector_for_cluster())
             .await
             .map_err(|e| Error::internal(e.to_string()))?;
         let _res: () = client
@@ -209,7 +216,7 @@ impl RaftNode {
     }
 
     async fn start_raft_service(raft_node: Arc<Self>) -> Result<()> {
-        let _raft_endpoint = raft_node.app.config.raft_endpoint.clone();
+        let config = raft_node.app.config.clone();
         let app = raft_node.app.clone();
         // Subscribe to shutdown signal
         let shutdown_rx = raft_node.shutdown_tx.subscribe();
@@ -217,11 +224,18 @@ impl RaftNode {
         // Create oneshot channel to signal startup completion
         let (startup_tx, startup_rx) = oneshot::channel::<StdResult<(), String>>();
 
-        let addr = raft_node.app.config.raft_advertise_endpoint.raft_addr();
-        let redis_addr = raft_node.app.config.raft_advertise_endpoint.redis_addr();
+        let addr = config.raft_advertise_endpoint.raft_addr();
+        let redis_addr = config.raft_advertise_endpoint.redis_addr();
         let handle = tokio::task::spawn(async move {
             // Signal startup success
-            let server = Server::new(app, addr.clone(), startup_tx, redis_addr);
+            let server = match Server::new(app, addr.clone(), startup_tx, redis_addr, &config) {
+                Ok(s) => s,
+                Err(e) => {
+                    // new 内部已经通过 startup_tx 发送了错误信息，外层会正常收到
+                    error!("Failed to create TCP server: {e}");
+                    return;
+                }
+            };
             if let Err(e) = server.start_server(shutdown_rx).await {
                 error!("Server error: {}", e);
             }

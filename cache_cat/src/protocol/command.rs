@@ -25,8 +25,10 @@ use crate::protocol::key::pexpire::PExpireCommand;
 use crate::protocol::key::rename::RenameCommand;
 use crate::protocol::key::renamenx::RenameNxCommand;
 use crate::protocol::list::llen::LLenCommand;
+use crate::protocol::list::lpop::LPopCommand;
 use crate::protocol::list::lpush::LPushCommand;
 use crate::protocol::list::lrange::LRangeCommand;
+use crate::protocol::list::rpop::RPopCommand;
 use crate::protocol::list::rpush::RPushCommand;
 use crate::protocol::lua::eval::EvalCommand;
 use crate::protocol::lua::evalsha::EvalShaCommand;
@@ -72,11 +74,20 @@ use futures::StreamExt;
 use std::collections::HashMap;
 use std::fmt;
 use std::fmt::{Display, Formatter};
+use std::io::IoSlice;
+
+use std::pin::Pin;
+use std::task::Context;
+use std::task::Poll;
+use tokio::io::ReadBuf;
+use tokio::io::{AsyncRead, AsyncWrite};
 use tokio::net::TcpStream;
 use tokio::select;
 use tokio::sync::watch;
+
 use tokio_util::codec::Framed;
 use tracing::{error, warn};
+use crate::raft::network::connection::Connection;
 
 #[async_trait]
 pub trait Command: Send + Sync {
@@ -118,13 +129,14 @@ pub trait SubCommand: Send + Sync {
     ) -> Result<Value, CacheCatError>;
 }
 
+
 pub struct Client {
     pub id: u64,
     pub db_number: u16,
     pub transaction_queue: Option<Vec<Operation>>,
     pub closed: bool,
     pub authenticated: bool,
-    pub framed: Framed<TcpStream, RespCodec>,
+    pub framed: Framed<Connection, RespCodec>,
     pub name: String,
     pub connection_time: u64,
     pub last_interaction: u64,
@@ -135,14 +147,14 @@ pub struct Client {
 }
 
 impl Client {
-    pub fn new(id: u64, framed: Framed<TcpStream, RespCodec>, auth: bool) -> Self {
+    pub fn new<T: Into<Connection>>(id: u64, connection: T, auth: bool) -> Self {
         Self {
             id,
             db_number: 0,
             transaction_queue: None,
             closed: false,
             authenticated: auth,
-            framed,
+            framed: Framed::new(connection.into(), RespCodec::new()),
             name: "".to_string(),
             connection_time: now_ms(),
             last_interaction: now_ms(),
@@ -256,6 +268,8 @@ impl CommandFactory {
         factory.register("RPUSH", RPushCommand);
         factory.register("LRANGE", LRangeCommand);
         factory.register("LLEN", LLenCommand);
+        factory.register("LPOP", LPopCommand);
+        factory.register("RPOP", RPopCommand);
         // Hash commands
         factory.register("HSET", HSetCommand);
         factory.register("HGET", HGetCommand);
