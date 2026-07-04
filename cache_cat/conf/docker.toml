@@ -2,16 +2,18 @@ node_id = 1
 
 [redis]
 #全局統一 redis哨兵的master名字
-sentinel_master_name = "cat"
-redis_port = 6379
+sentinel-master-name = "cat"
+redis-port = 6379
+tls-port = 6479
+
 #在没有请求到来时 多少秒进行一次key的清理 0表示不清理
-cleaning_interval = 100
+cleaning-interval = 100
 databases = 16
 #requirepass = "123"
 
 [raft]
 address = "0.0.0.0:5001"
-advertise_host = "0.0.0.0"
+advertise-host = "0.0.0.0"
 single = true
 join = []
 
