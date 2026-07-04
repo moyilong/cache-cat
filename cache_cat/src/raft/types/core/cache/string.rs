@@ -1,9 +1,6 @@
 use crate::protocol::NO_EXPIRATION;
 use crate::protocol::string::append::AppendReq;
-use crate::protocol::string::get::GetParams;
 use crate::protocol::string::incr::IncrReq;
-use crate::protocol::string::len::StrLenParams;
-use crate::protocol::string::mget::MgetParams;
 use crate::protocol::string::mset::MsetParams;
 use crate::protocol::string::set::{Expiration, SetMode, SetParams, SetReq};
 use crate::raft::types::core::mocha::mocha::{MyCache, Update};
@@ -90,37 +87,36 @@ impl MyCache {
 
         // Apply NX/XX mode logic
         match params.mode {
-            Some(SetMode::Nx) => {
-                // NX: Only set if key does not exist
-                if key_exists {
-                    // Key exists, do not set
-                    return if params.get {
-                        // GET with NX: return current value if it's a string, otherwise nil
-                        match existing_key {
-                            ExistingKey::Data(v) => Value::BulkString(Some(v)),
-                            _ => Value::BulkString(None), // Other type, return nil
-                        }
-                    } else {
-                        // Just return nil (nil bulk string)
-                        Value::BulkString(None)
-                    };
-                }
+            // NX: Only set if key does not exist
+            Some(SetMode::Nx) if key_exists => {
+                // Key exists, do not set
+                return if params.get {
+                    // GET with NX: return current value if it's a string, otherwise nil
+                    match existing_key {
+                        ExistingKey::Data(v) => Value::BulkString(Some(v)),
+                        _ => Value::BulkString(None), // Other type, return nil
+                    }
+                } else {
+                    // Just return nil (nil bulk string)
+                    Value::BulkString(None)
+                };
             }
-            Some(SetMode::Xx) => {
-                // XX: Only set if key exists
-                if !key_exists {
-                    // Key does not exist, do not set
-                    return if params.get {
-                        // GET with XX: return nil since key doesn't exist
-                        Value::BulkString(None)
-                    } else {
-                        Value::BulkString(None)
-                    };
-                }
+
+            Some(SetMode::Xx) if !key_exists => {
+                // Key does not exist, do not set
+                return if params.get {
+                    // GET with XX: return nil since key doesn't exist
+                    Value::BulkString(None)
+                } else {
+                    Value::BulkString(None)
+                };
             }
+
             None => {
                 // No mode restriction, always set
             }
+
+            _ => {}
         }
         let set = SetReq {
             key: params.key,
@@ -137,18 +133,6 @@ impl MyCache {
         } else {
             Value::ok()
         }
-    }
-
-    pub fn m_get(&self, param: MgetParams, db_number: u16, read_clock: Option<u64>) -> Value {
-        self.execute_multi_read(param, db_number, read_clock)
-    }
-
-    pub fn get(&self, param: GetParams, db_number: u16, read_clock: Option<u64>) -> Value {
-        self.execute_read(param, db_number, read_clock)
-    }
-
-    pub fn str_len(&self, param: StrLenParams, db_number: u16, read_clock: Option<u64>) -> Value {
-        self.execute_read(param, db_number, read_clock)
     }
 
     pub fn set(&self, param: SetReq, update: &mut Update) -> Value {

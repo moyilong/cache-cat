@@ -7,6 +7,7 @@ use futures::{SinkExt, StreamExt};
 use openraft::error::Timeout;
 use openraft::error::{NetworkError, RPCError, Unreachable};
 use parking_lot::Mutex;
+use rustls::pki_types::ServerName;
 use serde::Serialize;
 use serde::de::DeserializeOwned;
 use std::error::Error;
@@ -16,13 +17,12 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 use std::task::{Context, Poll};
 use std::time::Duration;
-use rustls::pki_types::ServerName;
-use tokio::io::{AsyncWriteExt, AsyncRead, AsyncWrite};
+use tokio::io::{AsyncRead, AsyncWrite, AsyncWriteExt};
 use tokio::net::TcpStream;
 use tokio::sync::{RwLock, mpsc};
 use tokio::time::timeout;
-use tokio_util::codec::{Framed, LengthDelimitedCodec};
 use tokio_rustls::TlsConnector;
+use tokio_util::codec::{Framed, LengthDelimitedCodec};
 
 // --- 槽位管理器配置 ---
 const MAX_PENDING: usize = 65536; // 必须是 2 的幂
@@ -181,7 +181,7 @@ impl RpcMultiClient {
                 // 网络错误：重连一次并重试（带上原本的 TLS 配置）
                 let fresh_client = RpcClient::connect(&self.addr, self.tls_connector.clone())
                     .await
-                    .map_err(|e| RPCError::Network(NetworkError::from_string(&e.to_string())))?;
+                    .map_err(|e| RPCError::Network(NetworkError::from_string(e.to_string())))?;
                 {
                     let mut guard = self.clients[idx].write().await;
                     *guard = fresh_client.clone();
@@ -235,7 +235,7 @@ impl RpcClient {
         addr: &str,
         tls_connector: Option<TlsConnector>,
     ) -> Result<Self, Box<dyn Error + Send + Sync>> {
-        let mut stream = TcpStream::connect(addr).await?;
+        let stream = TcpStream::connect(addr).await?;
         stream.set_nodelay(true)?; // RPC 必须关闭 Nagle 算法以降低延迟
 
         // 根据传入的 tls_connector 来决定走 TLS 还是普通明文 TCP

@@ -15,6 +15,8 @@ use crate::protocol::key::persist::PersistCommand;
 use crate::protocol::key::pexpire::PExpireCommand;
 use crate::protocol::key::rename::RenameCommand;
 use crate::protocol::key::renamenx::RenameNxCommand;
+use crate::protocol::key::type_::TypeCommand;
+use crate::protocol::list::lindex::LIndexCommand;
 use crate::protocol::list::llen::LLenCommand;
 use crate::protocol::list::lpop::LPopCommand;
 use crate::protocol::list::lpush::LPushCommand;
@@ -131,7 +133,8 @@ impl RaftCommandFactory {
         factory.register("HVALS", HValsCommand);
         factory.register("LLEN", LLenCommand);
         factory.register("RPUSH", RPushCommand);
-
+        factory.register("TYPE", TypeCommand);
+        factory.register("LINDEX", LIndexCommand);
         factory
     }
 

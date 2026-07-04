@@ -13,7 +13,7 @@ use openraft::{OptionalSend, RaftNetworkFactory, RaftNetworkV2, Snapshot};
 use parking_lot::RwLock;
 use std::sync::Arc;
 use std::time::Duration;
-use tokio_rustls::{TlsAcceptor, TlsConnector};
+use tokio_rustls::TlsConnector;
 use tracing::info;
 
 pub struct NetworkFactory {
@@ -164,7 +164,7 @@ impl RaftNetworkV2<TypeConfig> for TcpNetwork {
                     id: node_id,
                 }));
             }
-            send_result = snapshot.snapshot.send_file(&*client.addr) => {
+            send_result = snapshot.snapshot.send_file(&client.addr) => {
                 send_result
             }
         };

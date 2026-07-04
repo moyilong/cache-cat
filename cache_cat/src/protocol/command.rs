@@ -24,6 +24,8 @@ use crate::protocol::key::persist::PersistCommand;
 use crate::protocol::key::pexpire::PExpireCommand;
 use crate::protocol::key::rename::RenameCommand;
 use crate::protocol::key::renamenx::RenameNxCommand;
+use crate::protocol::key::type_::TypeCommand;
+use crate::protocol::list::lindex::LIndexCommand;
 use crate::protocol::list::llen::LLenCommand;
 use crate::protocol::list::lpop::LPopCommand;
 use crate::protocol::list::lpush::LPushCommand;
@@ -64,6 +66,7 @@ use crate::protocol::transaction::multi::MultiCommand;
 use crate::protocol::zset::zadd::ZAddCommand;
 use crate::protocol::zset::zrange::ZRangeCommand;
 use crate::protocol::zset::zrangegetscore::ZRangeByScoreCommand;
+use crate::raft::network::connection::Connection;
 use crate::raft::network::redis_server::{RedisServer, RespCodec};
 use crate::raft::types::core::response_value::Value;
 use crate::raft::types::entry::request::Operation;
@@ -74,20 +77,10 @@ use futures::StreamExt;
 use std::collections::HashMap;
 use std::fmt;
 use std::fmt::{Display, Formatter};
-use std::io::IoSlice;
-
-use std::pin::Pin;
-use std::task::Context;
-use std::task::Poll;
-use tokio::io::ReadBuf;
-use tokio::io::{AsyncRead, AsyncWrite};
-use tokio::net::TcpStream;
 use tokio::select;
 use tokio::sync::watch;
-
 use tokio_util::codec::Framed;
 use tracing::{error, warn};
-use crate::raft::network::connection::Connection;
 
 #[async_trait]
 pub trait Command: Send + Sync {
@@ -128,7 +121,6 @@ pub trait SubCommand: Send + Sync {
         server: &RedisServer,
     ) -> Result<Value, CacheCatError>;
 }
-
 
 pub struct Client {
     pub id: u64,
@@ -172,12 +164,19 @@ pub struct ClientFlag {
 }
 
 impl ClientFlag {
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self {
             in_sub: false,
             multi: false,
             blocking: false,
         }
+    }
+}
+
+impl Default for ClientFlag {
+    #[inline]
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -263,6 +262,7 @@ impl CommandFactory {
         factory.register("SETEX", SetExCommand);
         factory.register("SETNX", SetNxCommand);
         factory.register("STRLEN", StrLenCommand);
+        factory.register("TYPE", TypeCommand);
         // List commands
         factory.register("LPUSH", LPushCommand);
         factory.register("RPUSH", RPushCommand);
@@ -270,6 +270,7 @@ impl CommandFactory {
         factory.register("LLEN", LLenCommand);
         factory.register("LPOP", LPopCommand);
         factory.register("RPOP", RPopCommand);
+        factory.register("LINDEX", LIndexCommand);
         // Hash commands
         factory.register("HSET", HSetCommand);
         factory.register("HGET", HGetCommand);
@@ -456,14 +457,12 @@ impl CommandFactory {
             }
         };
         client.last_cmd = parsed.name.clone();
-        if !client.authenticated {
-            if parsed.name != "AUTH" && parsed.name != "QUIT" {
-                client
-                    .framed
-                    .send(Value::from(ProtocolError::NotAuthenticated))
-                    .await?;
-                return Ok(());
-            }
+        if !client.authenticated && parsed.name != "AUTH" && parsed.name != "QUIT" {
+            client
+                .framed
+                .send(Value::from(ProtocolError::NotAuthenticated))
+                .await?;
+            return Ok(());
         }
 
         if let Some(cmd) = self.commands.get(&parsed.name) {

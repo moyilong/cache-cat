@@ -6,7 +6,7 @@ use crate::raft::application::pub_sub::PubSub;
 use crate::raft::network::client::RpcClient;
 use crate::raft::network::network::NetworkFactory;
 use crate::raft::network::rpc::Server;
-use crate::raft::network::tls::{TlsContext, load_tls_config};
+use crate::raft::network::tls::TlsContext;
 use crate::raft::store::log_store::LogStore;
 use crate::raft::store::raft_engine::create_raft_engine;
 use crate::raft::store::statemachine::StateMachineStore;
@@ -161,7 +161,8 @@ impl RaftNode {
                 .join(", ")
         )))
     }
-    async fn join_via(&self, addr: &String) -> Result<()> {
+
+    async fn join_via(&self, addr: &str) -> Result<()> {
         let config = &self.app.config;
 
         let join_req = JoinRequest {
