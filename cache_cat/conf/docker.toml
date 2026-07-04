@@ -17,7 +17,7 @@ advertise-host = "0.0.0.0"
 single = true
 join = []
 
-log_path = "C:/tmp/raft/cache-cat/1"
+log-path = "C:/tmp/raft/cache-cat/1"
 
 #选举超时时间，节点之间的时钟偏移不能超过该值 需要大于500
 election_timeout = 799
