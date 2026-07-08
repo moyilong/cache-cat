@@ -49,11 +49,6 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: cache_cat-${{matrix.target}}
-          path: target/${{matrix.toolchain}}/release/cache_cat
-
-      - name: Upload artifact CacheCat Ping
-        uses: actions/upload-artifact@v4
-        with:
-          name: cache_cat_ping-${{matrix.target}}
-          path: target/${{matrix.toolchain}}/release/cache_cat_ping
-            
+          path: |
+            target/${{matrix.toolchain}}/release/cache_cat
+            target/${{matrix.toolchain}}/release/cache_cat_ping
