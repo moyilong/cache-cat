@@ -9,7 +9,7 @@ WORKDIR /install-bin
 RUN --mount=type=bind,source=./dist,target=/host \
   TVAL_NAME=$(echo $TARGETPLATFORM | sed 's/\//-/g'); \
   echo "Install: $TVAL_NAME"; \
-  cp -v $(find -type f /host/cache_cat-$TVAL_NAME/) /install-bin/cache_cat/;
+  cp -v /host/cache_cat-$TVAL_NAME/* /install-bin/cache_cat/;
 
 
 FROM scratch
