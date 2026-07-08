@@ -17,7 +17,7 @@ jobs:
 
       - uses: actions/download-artifact@v8
         with:
-          pattern: cache_cat*
+          # pattern: cache_cat*
           path: ./dist/
           run-id: 28942350067
 
