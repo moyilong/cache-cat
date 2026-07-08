@@ -18,7 +18,6 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           pattern: build-output.zip
-          path: .
 
       - name: extract build-output
         run: mkdir ./dist && cd dist && unzip ../build-output.zip
