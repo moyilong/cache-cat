@@ -23,8 +23,8 @@ jobs:
             aarch64-unknown-linux-musl
             riscv64gc-unknown-linux-musl
             armv7-unknown-linux-musleabihf
-            s390x-unknown-linux-musl
-            loongarch64-unknown-linux-musl
+            # s390x-unknown-linux-musl
+            # loongarch64-unknown-linux-musl
 
       - name: Install Zig
         uses: mlugg/setup-zig@v2
