@@ -15,7 +15,7 @@ jobs:
           - toolchain: riscv64gc-unknown-linux-musl
             target: linux-riscv64
           - toolchain: aarch64-unknown-linux-musl
-            target: linux-arm64-v8
+            target: linux-arm64
 
     permissions:
       contents: read
