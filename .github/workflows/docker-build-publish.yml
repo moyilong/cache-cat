@@ -20,10 +20,6 @@ jobs:
           pattern: "*"
           path: ./dist
 
-      - run: |
-          mkdir -p dist/linux
-          mv dist/build-output/cache_cat-x86_64-unknown-linux-musl dist/linux/amd64
-          mv dist/build-output/cache_cat-aarch64-unknown-linux-musl dist/linux/arm64
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v2
         with:

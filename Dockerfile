@@ -1,10 +1,22 @@
-FROM alpine
-
+FROM ubuntu AS build
 ARG TARGETPLATFORM
+ENV TARGETPLATFORM=${TARGETPLATFORM}
 
-RUN apk add --no-cache ca-certificates redis
+# SHELL [ "bash","-C" ]
 
-COPY --chmod=0777 ./dist/${TARGETPLATFORM} /cache_cat
+WORKDIR /install-bin
+
+RUN --mount=type=bind,source=./dist,target=/host \
+  TVAL_NAME=$(echo $TARGETPLATFORM | sed 's/\//-/g'); \
+  echo "Install: $TVAL_NAME"; \
+  cp -v /host/benchmark-$TVAL_NAME /install-bin/benchmark; \
+  cp -v /host/cache_cat-$TVAL_NAME /install-bin/cache_cat; \
+  cp -v /host/cache_cat_ping-$TVAL_NAME /install-bin/cache_cat_ping;
+
+
+FROM scratch
+
+COPY --chmod=0777 --from=build /install-bin/* /cache-cat/
 
 # Port of Redis
 EXPOSE 6379 
@@ -14,7 +26,9 @@ EXPOSE 5001
 
 # Health Check
 HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
-  CMD redis-cli ping | grep -q PONG || exit 1
+  CMD /cache-cat/cache_cat_ping 127.0.0.1 6379
 
+# RUN ls /cache-cat
+# RUN /cache-cat/cache_cat --help
 
-ENTRYPOINT ["/cache_cat","--advertise-host","0.0.0.0]
+ENTRYPOINT ["/cache-cat/cache_cat","--advertise-host","0.0.0.0"]
