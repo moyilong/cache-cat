@@ -4,27 +4,27 @@ on:
   workflow_dispatch:
 
 jobs:
-  build:
-    uses: ./.github/workflows/just-compile.yaml
+  # build:
+  #   uses: ./.github/workflows/just-compile.yaml
     
   push-docker:
     runs-on: ubuntu-latest
-    needs: build
+    # needs: build
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           pattern: cache_cat*
           path: ./dist/
+          artifact-ids: 8168178913
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v2
         with:
           platforms: all
-
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v2
 
