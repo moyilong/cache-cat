@@ -28,6 +28,7 @@ pub fn read_request(
         ReadOperation::LLen(param) => my_cache.execute_read(param, db_number, read_clock),
         ReadOperation::Type(param) => my_cache.execute_read(param, db_number, read_clock),
         ReadOperation::LIndex(param) => my_cache.execute_read(param, db_number, read_clock),
+        ReadOperation::SIsMember(param) => my_cache.execute_read(param, db_number, read_clock),
     }
 }
 
@@ -62,6 +63,7 @@ pub fn base_request(
         BaseOperation::RPush(param) => my_cache.r_push(param, update),
         BaseOperation::RPop(param) => my_cache.r_pop(param, update),
         BaseOperation::LRem(param) => my_cache.l_rem(param, update),
+        BaseOperation::LSet(papaya) => my_cache.l_set(papaya, update),
     }
 }
 

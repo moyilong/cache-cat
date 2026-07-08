@@ -82,6 +82,8 @@ use tokio::sync::watch;
 use tokio_util::codec::Framed;
 use tracing::{error, warn};
 use crate::protocol::list::lrem::LRemCommand;
+use crate::protocol::list::lset::LSetCommand;
+use crate::protocol::set::sismember::SIsMemberCommand;
 
 #[async_trait]
 pub trait Command: Send + Sync {
@@ -273,6 +275,7 @@ impl CommandFactory {
         factory.register("RPOP", RPopCommand);
         factory.register("LINDEX", LIndexCommand);
         factory.register("LREM", LRemCommand);
+        factory.register("LSET", LSetCommand);
         // Hash commands
         factory.register("HSET", HSetCommand);
         factory.register("HGET", HGetCommand);
@@ -282,11 +285,11 @@ impl CommandFactory {
         factory.register("HGETALL", HGetAllCommand);
         factory.register("HKEYS", HKeysCommand);
         factory.register("HVALS", HValsCommand);
-
         // Set commands
         factory.register("SADD", SAddCommand);
         factory.register("SMEMBERS", SMembersCommand);
         factory.register("SREM", SRemCommand);
+        factory.register("SISMEMBER", SIsMemberCommand);
         // ZSet commands
         factory.register("ZADD", ZAddCommand);
         factory.register("ZRANGE", ZRangeCommand);
