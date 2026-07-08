@@ -20,8 +20,6 @@ jobs:
           pattern: cache_cat*
           path: ./dist/
 
-      - name: extract build-output
-        run: mkdir ./dist && cd dist && unzip ../build-output.zip
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v2
