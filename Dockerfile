@@ -25,7 +25,7 @@ EXPOSE 5001
 
 # Health Check
 HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
-  CMD ["/cache-cat/cache_cat_ping" ,"127.0.0.1", 6379]
+  CMD ["/cache-cat/cache_cat_ping" ,"127.0.0.1", "6379"]
 
 # RUN ls /cache-cat
 # RUN /cache-cat/cache_cat --help
