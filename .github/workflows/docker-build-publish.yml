@@ -17,8 +17,11 @@ jobs:
 
       - uses: actions/download-artifact@v4
         with:
-          pattern: "*"
-          path: ./dist
+          pattern: build-output.zip
+          path: .
+
+      - name: extract build-output
+        run: mkdir ./dist && cd dist && unzip ../build-output.zip
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v2
