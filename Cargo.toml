@@ -1,3 +1,3 @@
 [workspace]
-members = ["benchmark", "cache_cat"]
+members = ["benchmark", "cache_cat", "cache_cat_ping"]
 resolver = "3"

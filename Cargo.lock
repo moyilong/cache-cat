@@ -432,6 +432,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "cache_cat_ping"
+version = "0.1.0"
+
+[[package]]
 name = "cc"
 version = "1.2.57"
 source = "registry+https://github.com/rust-lang/crates.io-index"
