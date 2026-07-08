@@ -17,4 +17,4 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
   CMD redis-cli ping | grep -q PONG || exit 1
 
 
-ENTRYPOINT ["/cache_cat"]
+ENTRYPOINT ["/cache_cat","--advertise-host","0.0.0.0]
