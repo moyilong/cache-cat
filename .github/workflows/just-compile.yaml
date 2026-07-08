@@ -43,7 +43,7 @@ jobs:
       - name: Build
         run: |
           mkdir -p dist
-          make all
+          make all -j4
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
