@@ -33,10 +33,13 @@ jobs:
       - name: Install cargo-zigbuild
         run: cargo install cargo-zigbuild --locked
 
+      - name: Fetch
+        run: make fetch
+
       - name: Build
         run: |
           mkdir -p dist
-          make
+          make all
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
