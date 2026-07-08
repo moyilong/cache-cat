@@ -19,7 +19,7 @@ jobs:
         with:
           pattern: cache_cat*
           path: ./dist/
-          artifact-ids: 28942350067
+          artifact-ids: 8168178913,8168177690,8168173218
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v2
