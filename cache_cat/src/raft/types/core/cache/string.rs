@@ -1,12 +1,17 @@
 use crate::protocol::NO_EXPIRATION;
 use crate::protocol::string::append::AppendReq;
 use crate::protocol::string::incr::IncrReq;
+use crate::protocol::string::incrby::IncrByReq;
 use crate::protocol::string::mset::MsetParams;
+use crate::protocol::string::psetex::PSetExParams;
 use crate::protocol::string::set::{Expiration, SetMode, SetParams, SetReq};
+use crate::protocol::string::setex::SetExParams;
+use crate::protocol::string::setnx::SetNxParams;
 use crate::raft::types::core::mocha::mocha::{MyCache, Update};
 use crate::raft::types::core::response_value::Value;
 use crate::raft::types::core::value_object::ValueObject;
 use bytes::Bytes;
+use crate::protocol::string::decrby::DecrByReq;
 
 impl MyCache {
     pub fn redis_mset(&self, params: MsetParams, update: &mut Update<'_>, external: bool) -> Value {
@@ -118,6 +123,7 @@ impl MyCache {
 
             _ => {}
         }
+
         let set = SetReq {
             key: params.key,
             value: params.value,
@@ -135,6 +141,80 @@ impl MyCache {
         }
     }
 
+    pub fn redis_setnx(&self, params: SetNxParams, update: &mut Update<'_>) -> Value {
+        enum ExistingKey {
+            None,      // Key doesn't exist
+            Data,      // Key exists and is a valid string
+            OtherType, // Key exists but is not a string (Hash, etc.)
+        }
+
+        let mut existing_key = ExistingKey::None;
+
+        let cache = match self.get_cache(update.db_number) {
+            Err(err) => return err,
+            Ok(cache) => cache,
+        };
+        match cache.mocha.get_entry(&params.key) {
+            None => { /* remains None */ }
+            Some(value) => {
+                existing_key = match value.value.data {
+                    ValueObject::Int(_) => ExistingKey::Data,
+                    ValueObject::String(_) => ExistingKey::Data,
+                    _ => ExistingKey::OtherType,
+                };
+            }
+        }
+
+        if matches!(existing_key, ExistingKey::Data | ExistingKey::OtherType) {
+            // Just return nil (nil bulk string)
+            Value::BulkString(None)
+        } else {
+            let set = SetReq {
+                key: params.key,
+                value: params.value,
+                ex_time: NO_EXPIRATION,
+            };
+
+            self.set(set, update);
+
+            Value::ok()
+        }
+    }
+
+    pub fn redis_setex(&self, params: SetExParams, update: &mut Update<'_>) -> Value {
+        // The latest write logic time
+        let now = update.write_clock;
+
+        let expires_at = now + params.expiration * 1000;
+
+        let set = SetReq {
+            key: params.key,
+            value: params.value,
+            ex_time: expires_at,
+        };
+
+        self.set(set, update);
+
+        Value::ok()
+    }
+
+    pub fn redis_psetex(&self, params: PSetExParams, update: &mut Update<'_>) -> Value {
+        // The latest write logic time
+        let now = update.write_clock;
+
+        let expires_at = now + params.expiration;
+
+        let set = SetReq {
+            key: params.key,
+            value: params.value,
+            ex_time: expires_at,
+        };
+
+        self.set(set, update);
+
+        Value::ok()
+    }
+
     pub fn set(&self, param: SetReq, update: &mut Update) -> Value {
         self.execute_compute(param, update)
     }
@@ -143,9 +223,17 @@ impl MyCache {
         self.execute_compute(param, update)
     }
 
+    pub fn incr_by(&self, param: IncrByReq, update: &mut Update) -> Value {
+        self.execute_compute(param, update)
+    }
+
     // If it's not a string, report an error;
     // if it's a string, append; if there's no value, create one
     pub fn append(&self, param: AppendReq, update: &mut Update) -> Value {
+        self.execute_compute(param, update)
+    }
+
+    pub fn decr_by(&self, param: DecrByReq, update: &mut Update) -> Value {
         self.execute_compute(param, update)
     }
 }

@@ -8,7 +8,6 @@ use crate::raft::types::core::mocha::mocha::MyValue;
 use crate::raft::types::core::response_value::Value;
 use crate::raft::types::core::value_object::ValueObject;
 use crate::raft::types::entry::bae_operation::BaseOperation;
-use crate::raft::types::entry::bae_operation::BaseOperation::Incr;
 use crate::raft::types::entry::request::Operation;
 use crate::utils::parse_i64;
 use async_trait::async_trait;
@@ -16,39 +15,46 @@ use bytes::Bytes;
 use serde::{Deserialize, Serialize};
 use std::fmt;
 
-/// Parameters for INCR command
+/// Parameters for DECRBY command
 #[derive(Debug, Clone, PartialEq)]
-pub struct IncrParams {
+pub struct DecrByParams {
     pub key: Bytes,
+    pub decrement: i64,
 }
 
-impl IncrParams {
+impl DecrByParams {
     fn parse(items: &[Value]) -> Result<Self, ProtocolError> {
-        if items.len() != 2 {
-            return Err(ProtocolError::WrongArgCount("INCR"));
+        if items.len() != 3 {
+            return Err(ProtocolError::WrongArgCount("DECRBY"));
         }
 
         let key = items[1]
             .string_bytes_clone()
             .ok_or(ProtocolError::InvalidArgument("key"))?;
 
-        Ok(IncrParams { key })
+        let decrement = items[2]
+            .parse_i64()
+            .ok_or(ProtocolError::InvalidArgument("decrement"))?;
+
+        Ok(DecrByParams { key, decrement })
     }
 }
 
-/// INCR command executor
-pub struct IncrCommand;
+/// DECRBY command executor
+pub struct DecrByCommand;
 
-impl RaftCommand for IncrCommand {
+impl RaftCommand for DecrByCommand {
     fn raft_request(&self, items: &[Value]) -> Result<Operation, ProtocolError> {
-        Ok(Operation::Base(Incr(IncrReq {
-            key: IncrParams::parse(items)?.key,
+        let params = DecrByParams::parse(items)?;
+        Ok(Operation::Base(BaseOperation::DecrBy(DecrByReq {
+            key: params.key,
+            decrement: params.decrement,
         })))
     }
 }
 
 #[async_trait]
-impl Command for IncrCommand {
+impl Command for DecrByCommand {
     async fn execute(
         &self,
         client: &mut Client,
@@ -67,27 +73,29 @@ impl Command for IncrCommand {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct IncrReq {
+pub struct DecrByReq {
     pub key: Bytes,
+    pub decrement: i64,
 }
 
-impl fmt::Display for IncrReq {
+impl fmt::Display for DecrByReq {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(
             f,
-            "IncrReq {{ key: {} }}",
-            String::from_utf8_lossy(&self.key)
+            "DecrByReq {{ key: {}, decrement: {} }}",
+            String::from_utf8_lossy(&self.key),
+            self.decrement
         )
     }
 }
 
-impl ComputeCommand for IncrReq {
+impl ComputeCommand for DecrByReq {
     fn key(&self) -> &Bytes {
         &self.key
     }
 
     fn into_base_op(self) -> BaseOperation {
-        BaseOperation::Incr(self)
+        BaseOperation::DecrBy(self)
     }
 
     fn mutate(
@@ -97,7 +105,7 @@ impl ComputeCommand for IncrReq {
     ) -> (MochaOperation<MyValue>, Value) {
         let (result, value) = match &entry.value.data {
             ValueObject::Int(n) => {
-                let num = n + 1;
+                let num = n - self.decrement;
                 (ValueObject::Int(num), Value::Integer(num))
             }
 
@@ -108,7 +116,7 @@ impl ComputeCommand for IncrReq {
                         Value::Error("Value is not an integer".to_string()),
                     );
                 };
-                value += 1;
+                value -= self.decrement;
                 (ValueObject::Int(value), Value::Integer(value))
             }
 
@@ -129,12 +137,13 @@ impl ComputeCommand for IncrReq {
     }
 
     fn init(self) -> (MochaOperation<MyValue>, Value) {
+        let v = -self.decrement;
         (
             MochaOperation::Insert {
-                value: MyValue::new(ValueObject::Int(1)),
+                value: MyValue::new(ValueObject::Int(v)),
                 expire: ExpirePolicy::Persistent,
             },
-            Value::Integer(1),
+            Value::Integer(v),
         )
     }
 }
