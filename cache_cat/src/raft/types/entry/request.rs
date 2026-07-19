@@ -1,6 +1,7 @@
 use crate::protocol::key::rename::RenameParams;
 use crate::protocol::key::renamenx::RenameNxParams;
 use crate::protocol::lua::eval::EvalParams;
+use crate::protocol::string::getset::GetSetParams;
 use crate::protocol::string::mset::MsetParams;
 use crate::protocol::string::set::SetParams;
 use crate::protocol::string::setex::SetExParams;
@@ -60,6 +61,7 @@ pub enum RedisOperation {
     RedisSetNx(SetNxParams),
     RedisSetEx(SetExParams),
     RedisPSetEx(PSetExParams),
+    RedisGetSet(GetSetParams),
     RedisMset(MsetParams),
     RedisDel(DelParams),
     RedisRename(RenameParams),
@@ -91,6 +93,9 @@ impl fmt::Display for Request {
                 ReadOperation::LIndex(req) => write!(f, "LIndex: {}", req),
                 ReadOperation::SIsMember(req) => write!(f, "SIsMember: {}", req),
                 ReadOperation::HExists(req) => write!(f, "HExists: {}", req),
+                ReadOperation::PTtl(req) => write!(f, "Pttl: {}", req),
+                ReadOperation::Ttl(req) => write!(f, "Ttl: {}", req),
+                ReadOperation::HLen(req) => write!(f, "HLen: {}", req),
             },
             Operation::Base(op) => match op {
                 BaseOperation::Empty => write!(f, "None"),
@@ -117,6 +122,9 @@ impl fmt::Display for Request {
                 BaseOperation::LRem(req) => write!(f, "LRem: {}", req),
                 BaseOperation::LSet(req) => write!(f, "LSet: {}", req),
                 BaseOperation::DecrBy(req) => write!(f, "DecrBy: {}", req),
+                BaseOperation::HSetNx(req) => write!(f, "HSetNx: {}", req),
+                BaseOperation::Decr(req) => write!(f, "Decr: {}", req),
+                BaseOperation::ZRem(req) => write!(f, "ZRem: {}", req),
             },
             Operation::Redis(op) => match op {
                 RedisOperation::RedisSet(req) => write!(f, "RedisSet: {}", req),
@@ -129,6 +137,7 @@ impl fmt::Display for Request {
                 RedisOperation::RedisEval(req) => write!(f, "RedisEval: {}", req),
                 RedisOperation::RedisExec(req) => write!(f, "RedisExec: {}", req),
                 RedisOperation::RedisRenameNx(req) => write!(f, "RedisRenameNx: {}", req),
+                RedisOperation::RedisGetSet(req) => write!(f, "RedisGetSet: {}", req),
             },
         }
     }

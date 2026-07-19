@@ -2,6 +2,7 @@ use crate::protocol::bitmap::setbit::SetBitReq;
 use crate::protocol::hash::hdel::HDelReq;
 use crate::protocol::hash::hincrby::HIncrReq;
 use crate::protocol::hash::hset::HSetReq;
+use crate::protocol::hash::hsetnx::HSetNxReq;
 use crate::protocol::key::del::DelReq;
 use crate::protocol::key::expire::ExpireReq;
 use crate::protocol::key::persist::PersistReq;
@@ -15,16 +16,18 @@ use crate::protocol::list::rpush::RPushReq;
 use crate::protocol::set::sadd::SAddReq;
 use crate::protocol::set::srem::SRemReq;
 use crate::protocol::string::append::AppendReq;
+use crate::protocol::string::decr::DecrReq;
+use crate::protocol::string::decrby::DecrByReq;
 use crate::protocol::string::incr::IncrReq;
 use crate::protocol::string::incrby::IncrByReq;
 use crate::protocol::string::set::SetReq;
 use crate::protocol::zset::zadd::ZAddReq;
+use crate::protocol::zset::zrem::ZRemReq;
 use crate::raft::types::core::value_object::ValueObject;
 use bytes::Bytes;
 use serde::{Deserialize, Serialize};
 use std::fmt;
 use std::fmt::Display;
-use crate::protocol::string::decrby::DecrByReq;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum BaseOperation {
@@ -43,6 +46,7 @@ pub enum BaseOperation {
     Append(AppendReq),
     SetBit(SetBitReq),
     DecrBy(DecrByReq),
+    Decr(DecrReq),
     // list
     LPush(LPushReq),
     RPush(RPushReq),
@@ -54,8 +58,10 @@ pub enum BaseOperation {
     HSet(HSetReq),
     HIncr(HIncrReq),
     HDel(HDelReq),
+    HSetNx(HSetNxReq),
     // zset
     ZAdd(ZAddReq),
+    ZRem(ZRemReq),
     // set
     SAdd(SAddReq),
     SRem(SRemReq),

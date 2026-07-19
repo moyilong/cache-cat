@@ -15,16 +15,20 @@ use crate::protocol::hash::hget::HGetCommand;
 use crate::protocol::hash::hgetall::HGetAllCommand;
 use crate::protocol::hash::hincrby::HIncrByCommand;
 use crate::protocol::hash::hkeys::HKeysCommand;
+use crate::protocol::hash::hlen::HLenCommand;
 use crate::protocol::hash::hmget::HMGetCommand;
 use crate::protocol::hash::hset::HSetCommand;
+use crate::protocol::hash::hsetnx::HSetNxCommand;
 use crate::protocol::hash::hvals::HValsCommand;
 use crate::protocol::key::del::DelCommand;
 use crate::protocol::key::exists::ExistsCommand;
 use crate::protocol::key::expire::ExpireCommand;
 use crate::protocol::key::persist::PersistCommand;
 use crate::protocol::key::pexpire::PExpireCommand;
+use crate::protocol::key::pttl::PTtlCommand;
 use crate::protocol::key::rename::RenameCommand;
 use crate::protocol::key::renamenx::RenameNxCommand;
+use crate::protocol::key::ttl::TtlCommand;
 use crate::protocol::key::type_::TypeCommand;
 use crate::protocol::list::lindex::LIndexCommand;
 use crate::protocol::list::llen::LLenCommand;
@@ -54,7 +58,10 @@ use crate::protocol::set::sismember::SIsMemberCommand;
 use crate::protocol::set::smembers::SMembersCommand;
 use crate::protocol::set::srem::SRemCommand;
 use crate::protocol::string::append::AppendCommand;
+use crate::protocol::string::decr::DecrCommand;
+use crate::protocol::string::decrby::{DecrByCommand, DecrByReq};
 use crate::protocol::string::get::GetCommand;
+use crate::protocol::string::getset::GetSetCommand;
 use crate::protocol::string::incr::IncrCommand;
 use crate::protocol::string::incrby::IncrByCommand;
 use crate::protocol::string::len::StrLenCommand;
@@ -70,6 +77,7 @@ use crate::protocol::transaction::multi::MultiCommand;
 use crate::protocol::zset::zadd::ZAddCommand;
 use crate::protocol::zset::zrange::ZRangeCommand;
 use crate::protocol::zset::zrangegetscore::ZRangeByScoreCommand;
+use crate::protocol::zset::zrem::ZRemCommand;
 use crate::raft::network::connection::Connection;
 use crate::raft::network::redis_server::{RedisServer, RespCodec};
 use crate::raft::types::core::response_value::Value;
@@ -85,7 +93,6 @@ use tokio::select;
 use tokio::sync::watch;
 use tokio_util::codec::Framed;
 use tracing::{error, warn};
-use crate::protocol::string::decrby::{DecrByCommand, DecrByReq};
 
 #[async_trait]
 pub trait Command: Send + Sync {
@@ -269,6 +276,10 @@ impl CommandFactory {
         factory.register("STRLEN", StrLenCommand);
         factory.register("TYPE", TypeCommand);
         factory.register("DECRBY", DecrByCommand);
+        factory.register("PTTL", PTtlCommand);
+        factory.register("TTL", TtlCommand);
+        factory.register("DECR", DecrCommand);
+        factory.register("GETSET", GetSetCommand);
         // List commands
         factory.register("LPUSH", LPushCommand);
         factory.register("RPUSH", RPushCommand);
@@ -289,6 +300,8 @@ impl CommandFactory {
         factory.register("HKEYS", HKeysCommand);
         factory.register("HVALS", HValsCommand);
         factory.register("HEXISTS", HExistsCommand);
+        factory.register("HLEN", HLenCommand);
+        factory.register("HSETNX", HSetNxCommand);
         // Set commands
         factory.register("SADD", SAddCommand);
         factory.register("SMEMBERS", SMembersCommand);
@@ -298,6 +311,7 @@ impl CommandFactory {
         factory.register("ZADD", ZAddCommand);
         factory.register("ZRANGE", ZRangeCommand);
         factory.register("ZRANGEBYSCORE", ZRangeByScoreCommand);
+        factory.register("ZREM", ZRemCommand);
         // Bitmap commands
         factory.register("SETBIT", SetBitCommand);
         factory.register("GETBIT", GetBitCommand);
