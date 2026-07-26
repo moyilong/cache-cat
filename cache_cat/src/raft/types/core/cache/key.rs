@@ -1,6 +1,8 @@
 use crate::mocha::{EntrySnapshot, ExpirePolicy, MochaOperation};
 use crate::protocol::key::del::{DelParams, DelReq};
 use crate::protocol::key::expire::ExpireReq;
+use crate::protocol::key::flushall::FlushAllReq;
+use crate::protocol::key::flushdb::FlushDBReq;
 use crate::protocol::key::persist::PersistReq;
 use crate::protocol::key::pexpire::PExpireReq;
 use crate::protocol::key::rename::RenameParams;
@@ -66,9 +68,11 @@ impl MyCache {
         update: &mut Update<'_>,
         external: bool,
     ) -> Value {
-        if external {
-            let _exclusive_lock = self.read_lock.write();
-        }
+        let _exclusive_lock = if external {
+            Some(self.read_lock.write())
+        } else {
+            None
+        };
         let cached = match self.get_cache(update.db_number) {
             Err(err) => return err,
             Ok(cache) => cache,
@@ -94,9 +98,11 @@ impl MyCache {
         update: &mut Update<'_>,
         external: bool,
     ) -> Value {
-        if external {
-            let _exclusive_lock = self.read_lock.write();
-        }
+        let _exclusive_lock = if external {
+            Some(self.read_lock.write())
+        } else {
+            None
+        };
         let cached = match self.get_cache(update.db_number) {
             Err(err) => return err,
             Ok(cache) => &cache.mocha,
@@ -128,9 +134,12 @@ impl MyCache {
 
     pub fn redis_del(&self, params: DelParams, update: &mut Update<'_>, external: bool) -> Value {
         let mut count = 0;
-        if external {
-            let _exclusive_lock = self.read_lock.write();
-        }
+        let _exclusive_lock = if external {
+            Some(self.read_lock.write())
+        } else {
+            None
+        };
+
         for key in params.keys {
             let del = DelReq { key };
             match self.del(del, update) {
@@ -200,6 +209,58 @@ impl MyCache {
                 Value::Integer(0)
             }
         }
+    }
+
+    pub fn flush_db(&self, req: FlushDBReq, update: &mut Update) -> Value {
+        let _lock = self.read_lock.write();
+        let cache = match self.get_cache(update.db_number) {
+            Err(err) => return err,
+            Ok(cache) => &cache.mocha,
+        };
+        match update.update_type {
+            UpdateType::None => {
+                cache.clear();
+            }
+            UpdateType::Snapshot(queue) => {
+                queue.push(AtomicRequest {
+                    version: 1,
+                    request: BaseOperation::FlushDB(req.clone()),
+                    write_clock: update.write_clock,
+                });
+                cache.clear();
+            }
+            UpdateType::CAS(_) => {
+                cache.clear();
+            }
+        }
+        Value::ok()
+    }
+
+    pub fn flush_all(&self, req: FlushAllReq, update: &mut Update) -> Value {
+        let _lock = self.read_lock.write();
+        match update.update_type {
+            UpdateType::None => {
+                for database in &self.databases {
+                    database.mocha.clear();
+                }
+            }
+            UpdateType::Snapshot(queue) => {
+                queue.push(AtomicRequest {
+                    version: 1,
+                    request: BaseOperation::FlushAll(req.clone()),
+                    write_clock: update.write_clock,
+                });
+                for database in &self.databases {
+                    database.mocha.clear();
+                }
+            }
+            UpdateType::CAS(_) => {
+                for database in &self.databases {
+                    database.mocha.clear();
+                }
+            }
+        }
+        Value::ok()
     }
 
     pub fn insert(&self, insert_req: InsertReq, update: &mut Update) -> Value {

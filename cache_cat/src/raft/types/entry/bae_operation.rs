@@ -5,12 +5,14 @@ use crate::protocol::hash::hset::HSetReq;
 use crate::protocol::hash::hsetnx::HSetNxReq;
 use crate::protocol::key::del::DelReq;
 use crate::protocol::key::expire::ExpireReq;
+use crate::protocol::key::flushdb::FlushDBReq;
 use crate::protocol::key::persist::PersistReq;
 use crate::protocol::key::pexpire::PExpireReq;
 use crate::protocol::list::lpop::LPopReq;
 use crate::protocol::list::lpush::LPushReq;
 use crate::protocol::list::lrem::LRemReq;
 use crate::protocol::list::lset::LSetReq;
+use crate::protocol::list::ltrim::LTrimReq;
 use crate::protocol::list::rpop::RPopReq;
 use crate::protocol::list::rpush::RPushReq;
 use crate::protocol::set::sadd::SAddReq;
@@ -28,6 +30,7 @@ use bytes::Bytes;
 use serde::{Deserialize, Serialize};
 use std::fmt;
 use std::fmt::Display;
+use crate::protocol::key::flushall::FlushAllReq;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum BaseOperation {
@@ -39,6 +42,8 @@ pub enum BaseOperation {
     PExpire(PExpireReq),
     Persist(PersistReq),
     Insert(InsertReq),
+    FlushDB(FlushDBReq),
+    FlushAll(FlushAllReq),
     //string
     Set(SetReq),
     Incr(IncrReq),
@@ -54,6 +59,7 @@ pub enum BaseOperation {
     RPop(RPopReq),
     LRem(LRemReq),
     LSet(LSetReq),
+    LTrim(LTrimReq),
     //hash
     HSet(HSetReq),
     HIncr(HIncrReq),

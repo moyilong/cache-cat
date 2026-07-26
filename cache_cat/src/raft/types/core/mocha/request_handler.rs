@@ -33,6 +33,9 @@ pub fn read_request(
         ReadOperation::PTtl(param) => my_cache.execute_read(param, db_number, read_clock),
         ReadOperation::Ttl(param) => my_cache.execute_read(param, db_number, read_clock),
         ReadOperation::HLen(param) => my_cache.execute_read(param, db_number, read_clock),
+        ReadOperation::BitCount(param) => my_cache.execute_read(param, db_number, read_clock),
+        ReadOperation::BitPos(param) => my_cache.execute_read(param, db_number, read_clock),
+        ReadOperation::SCard(param) => my_cache.execute_read(param, db_number, read_clock),
     }
 }
 
@@ -74,6 +77,9 @@ pub fn base_request(
         BaseOperation::HSetNx(param) => my_cache.h_set_nx(param, update),
         BaseOperation::Decr(param) => my_cache.decr(param, update),
         BaseOperation::ZRem(param) => my_cache.z_rem(param, update),
+        BaseOperation::LTrim(param) => my_cache.l_trim(param, update),
+        BaseOperation::FlushDB(param) => my_cache.flush_db(param, update),
+        BaseOperation::FlushAll(param) => my_cache.flush_all(param, update),
     }
 }
 
@@ -100,18 +106,22 @@ pub fn do_request(
                 my_cache.redis_rename_nx(param, update, external)
             }
             RedisOperation::RedisEval(param) => {
-                if external {
-                    let _exclusive_lock = my_cache.read_lock.write();
-                }
+                let _exclusive_lock = if external {
+                    Some(my_cache.read_lock.write())
+                } else {
+                    None
+                };
                 my_cache
                     .lua_env
                     .exec_lua(my_cache, &param.script, &param.keys, &param.args, update)
                     .unwrap_or_else(|err| err.into())
             }
             RedisOperation::RedisExec(param) => {
-                if external {
-                    let _exclusive_lock = my_cache.read_lock.write();
-                }
+                let _exclusive_lock = if external {
+                    Some(my_cache.read_lock.write())
+                } else {
+                    None
+                };
                 let mut vec = Vec::new();
                 for operation in param.operations {
                     vec.push(do_request(my_cache, operation, update, false));

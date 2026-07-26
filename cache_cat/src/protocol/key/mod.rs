@@ -9,3 +9,5 @@ pub mod rename;
 pub mod renamenx;
 pub mod ttl;
 pub mod type_;
+pub mod flushdb;
+pub mod flushall;

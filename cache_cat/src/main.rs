@@ -10,7 +10,7 @@ use mimalloc::MiMalloc;
 use std::error::Error;
 use std::sync::Arc;
 use tokio::time::sleep;
-use tokio::{select, signal, spawn};
+use tokio::{select, spawn};
 use tracing::{error, info, warn};
 use tracing_subscriber::fmt::time::LocalTime;
 
@@ -26,8 +26,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
         .with_max_level(tracing::Level::INFO)
         .init();
 
-    let (raft_node, (shutdown_tx, mut shutdown_rx)) =
-        RaftNodeBuilder::build(&config).await?;
+    let (raft_node, (shutdown_tx, mut shutdown_rx)) = RaftNodeBuilder::build(&config).await?;
 
     print_msg(&config);
 
@@ -169,4 +168,3 @@ fn print_msg(config: &Config) {
     println!("Raft Address: {}", config.raft.address);
     println!("Redis Port: {}", config.redis.redis_port);
 }
-

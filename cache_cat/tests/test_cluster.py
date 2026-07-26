@@ -147,3 +147,25 @@ print(r.get("test24"))
 r.zadd("my_zset", {"a": 1, "b": 2, "c": 3})
 r.zrem("my_zset", "a")
 print(r.zrange("my_zset", 0, -1))
+
+r.lpush("list test3", "test")
+r.lpush("list test3", "test2")
+r.lpush("list test3", "test3")
+r.ltrim("list test3", 0, 1)
+print(r.lrange("list test3", 0, -1))
+
+r.flushdb()
+print(r.get("test24"))
+r.set("test24", "test24")
+r.flushall()
+print(r.get("test24"))
+r.setbit("test25", 0, 1)
+print(r.bitcount("test25", 0, -1))
+
+r.setbit("test26", 0, 0)   # 第0位设为0（默认就是0，这行可省略）
+r.setbit("test26", 1, 1)   # 第1位设为1
+print(r.bitpos("test26", 1))  # 返回 1
+
+
+r.sadd("test27", "test")
+print(r.scard("test27"))

@@ -1,5 +1,7 @@
 use crate::error::CacheCatError;
 use crate::error::ProtocolError;
+use crate::protocol::bitmap::bitcount::BitCountCommand;
+use crate::protocol::bitmap::bitpos::BitPosCommand;
 use crate::protocol::bitmap::getbit::GetBitCommand;
 use crate::protocol::bitmap::setbit::SetBitCommand;
 use crate::protocol::connection::auth::AuthCommand;
@@ -23,6 +25,8 @@ use crate::protocol::hash::hvals::HValsCommand;
 use crate::protocol::key::del::DelCommand;
 use crate::protocol::key::exists::ExistsCommand;
 use crate::protocol::key::expire::ExpireCommand;
+use crate::protocol::key::flushall::FlushAllCommand;
+use crate::protocol::key::flushdb::FlushDBCommand;
 use crate::protocol::key::persist::PersistCommand;
 use crate::protocol::key::pexpire::PExpireCommand;
 use crate::protocol::key::pttl::PTtlCommand;
@@ -37,6 +41,7 @@ use crate::protocol::list::lpush::LPushCommand;
 use crate::protocol::list::lrange::LRangeCommand;
 use crate::protocol::list::lrem::LRemCommand;
 use crate::protocol::list::lset::LSetCommand;
+use crate::protocol::list::ltrim::LTrimCommand;
 use crate::protocol::list::rpop::RPopCommand;
 use crate::protocol::list::rpush::RPushCommand;
 use crate::protocol::lua::eval::EvalCommand;
@@ -54,6 +59,7 @@ use crate::protocol::server::save::SaveCommand;
 use crate::protocol::server::shutdown::ShutdownCommand;
 use crate::protocol::server::time::TimeCommand;
 use crate::protocol::set::sadd::SAddCommand;
+use crate::protocol::set::scard::SCardCommand;
 use crate::protocol::set::sismember::SIsMemberCommand;
 use crate::protocol::set::smembers::SMembersCommand;
 use crate::protocol::set::srem::SRemCommand;
@@ -81,6 +87,7 @@ use crate::protocol::zset::zrem::ZRemCommand;
 use crate::raft::network::connection::Connection;
 use crate::raft::network::redis_server::{RedisServer, RespCodec};
 use crate::raft::types::core::response_value::Value;
+use crate::raft::types::entry::bae_operation::BaseOperation::FlushDB;
 use crate::raft::types::entry::request::Operation;
 use crate::utils::now_ms;
 use async_trait::async_trait;
@@ -280,6 +287,8 @@ impl CommandFactory {
         factory.register("TTL", TtlCommand);
         factory.register("DECR", DecrCommand);
         factory.register("GETSET", GetSetCommand);
+        factory.register("FLUSHDB", FlushDBCommand);
+        factory.register("FLUSHALL", FlushAllCommand);
         // List commands
         factory.register("LPUSH", LPushCommand);
         factory.register("RPUSH", RPushCommand);
@@ -290,6 +299,7 @@ impl CommandFactory {
         factory.register("LINDEX", LIndexCommand);
         factory.register("LREM", LRemCommand);
         factory.register("LSET", LSetCommand);
+        factory.register("LTRIM", LTrimCommand);
         // Hash commands
         factory.register("HSET", HSetCommand);
         factory.register("HGET", HGetCommand);
@@ -315,6 +325,9 @@ impl CommandFactory {
         // Bitmap commands
         factory.register("SETBIT", SetBitCommand);
         factory.register("GETBIT", GetBitCommand);
+        factory.register("BITCOUNT", BitCountCommand);
+        factory.register("BITPOS", BitPosCommand);
+        factory.register("SCARD", SCardCommand);
         // Lua scripting
         factory.register("EVAL", EvalCommand);
         factory.register("EVALSHA", EvalShaCommand);

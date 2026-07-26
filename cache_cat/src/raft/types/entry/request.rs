@@ -96,6 +96,9 @@ impl fmt::Display for Request {
                 ReadOperation::PTtl(req) => write!(f, "Pttl: {}", req),
                 ReadOperation::Ttl(req) => write!(f, "Ttl: {}", req),
                 ReadOperation::HLen(req) => write!(f, "HLen: {}", req),
+                ReadOperation::BitCount(req) => write!(f, "BitCount: {}", req),
+                ReadOperation::BitPos(req) => write!(f, "BitPos: {}", req),
+                ReadOperation::SCard(req) => write!(f, "SCard: {}", req),
             },
             Operation::Base(op) => match op {
                 BaseOperation::Empty => write!(f, "None"),
@@ -125,6 +128,9 @@ impl fmt::Display for Request {
                 BaseOperation::HSetNx(req) => write!(f, "HSetNx: {}", req),
                 BaseOperation::Decr(req) => write!(f, "Decr: {}", req),
                 BaseOperation::ZRem(req) => write!(f, "ZRem: {}", req),
+                BaseOperation::LTrim(req) => write!(f, "LTrim: {}", req),
+                BaseOperation::FlushDB(req) => write!(f, "FlushDB: {}", req),
+                BaseOperation::FlushAll(req) => write!(f, "FlushAll: {}", req),
             },
             Operation::Redis(op) => match op {
                 RedisOperation::RedisSet(req) => write!(f, "RedisSet: {}", req),
