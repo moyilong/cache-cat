@@ -1,3 +1,4 @@
+use crate::protocol::bitmap::bitfield::BitFieldReq;
 use crate::protocol::bitmap::setbit::SetBitReq;
 use crate::raft::types::core::mocha::mocha::{MyCache, Update};
 use crate::raft::types::core::response_value::Value;
@@ -5,6 +6,9 @@ use crate::raft::types::core::response_value::Value;
 impl MyCache {
 
     pub fn set_bit(&self, param: SetBitReq, update: &mut Update) -> Value {
+        self.execute_compute(param, update)
+    }
+    pub fn bit_field(&self, param: BitFieldReq, update: &mut Update)-> Value {
         self.execute_compute(param, update)
     }
 }

@@ -30,7 +30,9 @@ use bytes::Bytes;
 use serde::{Deserialize, Serialize};
 use std::fmt;
 use std::fmt::Display;
+use crate::protocol::bitmap::bitfield::BitFieldReq;
 use crate::protocol::key::flushall::FlushAllReq;
+use crate::protocol::set::spop::SPopReq;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum BaseOperation {
@@ -50,6 +52,7 @@ pub enum BaseOperation {
     IncrBy(IncrByReq),
     Append(AppendReq),
     SetBit(SetBitReq),
+    BitField(BitFieldReq),
     DecrBy(DecrByReq),
     Decr(DecrReq),
     // list
@@ -71,6 +74,7 @@ pub enum BaseOperation {
     // set
     SAdd(SAddReq),
     SRem(SRemReq),
+    SPop(SPopReq),
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]

@@ -7,6 +7,7 @@ use crate::protocol::key::persist::PersistReq;
 use crate::protocol::key::pexpire::PExpireReq;
 use crate::protocol::key::rename::RenameParams;
 use crate::protocol::key::renamenx::RenameNxParams;
+use crate::protocol::set::spop::SPopReq;
 use crate::raft::types::core::mocha::cas::ComputeCommand;
 use crate::raft::types::core::mocha::mocha::{MyCache, MyValue, Update, UpdateType};
 use crate::raft::types::core::response_value::Value;
@@ -261,6 +262,10 @@ impl MyCache {
             }
         }
         Value::ok()
+    }
+
+    pub fn s_pop(&self, param: SPopReq, update: &mut Update) -> Value {
+        self.execute_compute(param, update)
     }
 
     pub fn insert(&self, insert_req: InsertReq, update: &mut Update) -> Value {

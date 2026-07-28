@@ -1,6 +1,7 @@
 use crate::error::CacheCatError;
 use crate::error::ProtocolError;
 use crate::protocol::bitmap::bitcount::BitCountCommand;
+use crate::protocol::bitmap::bitfield::BitFieldCommand;
 use crate::protocol::bitmap::bitpos::BitPosCommand;
 use crate::protocol::bitmap::getbit::GetBitCommand;
 use crate::protocol::bitmap::setbit::SetBitCommand;
@@ -62,10 +63,11 @@ use crate::protocol::set::sadd::SAddCommand;
 use crate::protocol::set::scard::SCardCommand;
 use crate::protocol::set::sismember::SIsMemberCommand;
 use crate::protocol::set::smembers::SMembersCommand;
+use crate::protocol::set::spop::SPopCommand;
 use crate::protocol::set::srem::SRemCommand;
 use crate::protocol::string::append::AppendCommand;
 use crate::protocol::string::decr::DecrCommand;
-use crate::protocol::string::decrby::{DecrByCommand, DecrByReq};
+use crate::protocol::string::decrby::DecrByCommand;
 use crate::protocol::string::get::GetCommand;
 use crate::protocol::string::getset::GetSetCommand;
 use crate::protocol::string::incr::IncrCommand;
@@ -87,7 +89,6 @@ use crate::protocol::zset::zrem::ZRemCommand;
 use crate::raft::network::connection::Connection;
 use crate::raft::network::redis_server::{RedisServer, RespCodec};
 use crate::raft::types::core::response_value::Value;
-use crate::raft::types::entry::bae_operation::BaseOperation::FlushDB;
 use crate::raft::types::entry::request::Operation;
 use crate::utils::now_ms;
 use async_trait::async_trait;
@@ -100,6 +101,7 @@ use tokio::select;
 use tokio::sync::watch;
 use tokio_util::codec::Framed;
 use tracing::{error, warn};
+use crate::protocol::set::srandmember::SRandMemberCommand;
 
 #[async_trait]
 pub trait Command: Send + Sync {
@@ -317,6 +319,8 @@ impl CommandFactory {
         factory.register("SMEMBERS", SMembersCommand);
         factory.register("SREM", SRemCommand);
         factory.register("SISMEMBER", SIsMemberCommand);
+        factory.register("SPOP", SPopCommand);
+        factory.register("SRANDMEMBER", SRandMemberCommand);
         // ZSet commands
         factory.register("ZADD", ZAddCommand);
         factory.register("ZRANGE", ZRangeCommand);
@@ -328,6 +332,7 @@ impl CommandFactory {
         factory.register("BITCOUNT", BitCountCommand);
         factory.register("BITPOS", BitPosCommand);
         factory.register("SCARD", SCardCommand);
+        factory.register("BITFIELD", BitFieldCommand);
         // Lua scripting
         factory.register("EVAL", EvalCommand);
         factory.register("EVALSHA", EvalShaCommand);

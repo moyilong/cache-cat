@@ -162,10 +162,28 @@ print(r.get("test24"))
 r.setbit("test25", 0, 1)
 print(r.bitcount("test25", 0, -1))
 
-r.setbit("test26", 0, 0)   # 第0位设为0（默认就是0，这行可省略）
-r.setbit("test26", 1, 1)   # 第1位设为1
+r.setbit("test26", 0, 0)  # 第0位设为0（默认就是0，这行可省略）
+r.setbit("test26", 1, 1)  # 第1位设为1
 print(r.bitpos("test26", 1))  # 返回 1
-
 
 r.sadd("test27", "test")
 print(r.scard("test27"))
+
+result =(r.bitfield('player:1002:stats')
+ .set('u32', 0, 100).incrby('u16', 32, 50)
+ .get('u32', 0).get('u16', 32)
+ .incrby('u16', 48, 1).get('u16', 48)).execute()
+
+
+print(f"SET结果: {result[0]}")      # 0
+print(f"金币自增结果: {result[1]}")  # 50
+print(f"等级读取: {result[2]}")     # 100
+print(f"金币读取: {result[3]}")     # 50
+print(f"经验自增结果: {result[4]}")  # 1
+print(f"经验读取: {result[5]}")     # 1
+
+r.sadd("test27", "test")
+r.spop("test27")
+print(r.smembers("test27"))
+r.sadd("test27", "test")
+print(r.srandmember("test27"))

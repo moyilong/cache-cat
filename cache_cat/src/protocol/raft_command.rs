@@ -1,5 +1,6 @@
 use crate::error::ProtocolError;
 use crate::protocol::bitmap::bitcount::BitCountCommand;
+use crate::protocol::bitmap::bitfield::BitFieldCommand;
 use crate::protocol::bitmap::bitpos::BitPosCommand;
 use crate::protocol::bitmap::getbit::GetBitCommand;
 use crate::protocol::bitmap::setbit::SetBitCommand;
@@ -39,6 +40,7 @@ use crate::protocol::set::sadd::SAddCommand;
 use crate::protocol::set::scard::SCardCommand;
 use crate::protocol::set::sismember::SIsMemberCommand;
 use crate::protocol::set::smembers::SMembersCommand;
+use crate::protocol::set::spop::SPopCommand;
 use crate::protocol::set::srem::SRemCommand;
 use crate::protocol::string::append::AppendCommand;
 use crate::protocol::string::decr::DecrCommand;
@@ -64,6 +66,7 @@ use crate::raft::types::entry::request::Operation;
 use std::collections::HashMap;
 use std::fmt;
 use tracing::warn;
+use crate::protocol::set::srandmember::SRandMemberCommand;
 
 pub trait RaftCommand: Send + Sync {
     fn raft_request(&self, items: &[Value]) -> Result<Operation, ProtocolError>;
@@ -169,6 +172,9 @@ impl RaftCommandFactory {
         factory.register("BITCOUNT", BitCountCommand);
         factory.register("BITPOS", BitPosCommand);
         factory.register("SCARD", SCardCommand);
+        factory.register("BITFIELD", BitFieldCommand);
+        factory.register("SPOP", SPopCommand);
+        factory.register("SRANDMEMBER", SRandMemberCommand);
         factory
     }
 
