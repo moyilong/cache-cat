@@ -185,3 +185,5 @@ print(f"经验读取: {result[5]}")     # 1
 r.sadd("test27", "test")
 r.spop("test27")
 print(r.smembers("test27"))
+r.sadd("test27", "test")
+print(r.srandmember("test27"))

@@ -414,6 +414,7 @@ dependencies = [
  "papaya",
  "parking_lot",
  "raft-engine",
+ "rand 0.8.5",
  "rustls",
  "rustls-pemfile",
  "serde",

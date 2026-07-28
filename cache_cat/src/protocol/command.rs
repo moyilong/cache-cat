@@ -101,6 +101,7 @@ use tokio::select;
 use tokio::sync::watch;
 use tokio_util::codec::Framed;
 use tracing::{error, warn};
+use crate::protocol::set::srandmember::SRandMemberCommand;
 
 #[async_trait]
 pub trait Command: Send + Sync {
@@ -319,6 +320,7 @@ impl CommandFactory {
         factory.register("SREM", SRemCommand);
         factory.register("SISMEMBER", SIsMemberCommand);
         factory.register("SPOP", SPopCommand);
+        factory.register("SRANDMEMBER", SRandMemberCommand);
         // ZSet commands
         factory.register("ZADD", ZAddCommand);
         factory.register("ZRANGE", ZRangeCommand);
