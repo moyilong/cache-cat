@@ -38,9 +38,11 @@ use crate::protocol::list::rpush::RPushCommand;
 use crate::protocol::lua::eval::EvalCommand;
 use crate::protocol::set::sadd::SAddCommand;
 use crate::protocol::set::scard::SCardCommand;
+use crate::protocol::set::sinter::SInterCommand;
 use crate::protocol::set::sismember::SIsMemberCommand;
 use crate::protocol::set::smembers::SMembersCommand;
 use crate::protocol::set::spop::SPopCommand;
+use crate::protocol::set::srandmember::SRandMemberCommand;
 use crate::protocol::set::srem::SRemCommand;
 use crate::protocol::string::append::AppendCommand;
 use crate::protocol::string::decr::DecrCommand;
@@ -66,7 +68,6 @@ use crate::raft::types::entry::request::Operation;
 use std::collections::HashMap;
 use std::fmt;
 use tracing::warn;
-use crate::protocol::set::srandmember::SRandMemberCommand;
 
 pub trait RaftCommand: Send + Sync {
     fn raft_request(&self, items: &[Value]) -> Result<Operation, ProtocolError>;
@@ -175,6 +176,7 @@ impl RaftCommandFactory {
         factory.register("BITFIELD", BitFieldCommand);
         factory.register("SPOP", SPopCommand);
         factory.register("SRANDMEMBER", SRandMemberCommand);
+        factory.register("SINTER", SInterCommand);
         factory
     }
 
