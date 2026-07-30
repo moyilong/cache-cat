@@ -20,6 +20,7 @@ use crate::protocol::set::sinter::SInterParams;
 use crate::protocol::set::sismember::SIsMemberParams;
 use crate::protocol::set::smembers::SMembersParams;
 use crate::protocol::set::srandmember::SRandMemberParams;
+use crate::protocol::set::sunion::SUnionParams;
 use crate::protocol::string::get::GetParams;
 use crate::protocol::string::len::StrLenParams;
 use crate::protocol::string::mget::MgetParams;
@@ -56,4 +57,5 @@ pub enum ReadOperation {
     SCard(SCardParams),
     SRandMember(SRandMemberParams),
     SInter(SInterParams),
+    SUnion(SUnionParams),
 }
