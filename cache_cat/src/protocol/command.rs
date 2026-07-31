@@ -61,10 +61,13 @@ use crate::protocol::server::shutdown::ShutdownCommand;
 use crate::protocol::server::time::TimeCommand;
 use crate::protocol::set::sadd::SAddCommand;
 use crate::protocol::set::scard::SCardCommand;
+use crate::protocol::set::sinter::SInterCommand;
 use crate::protocol::set::sismember::SIsMemberCommand;
 use crate::protocol::set::smembers::SMembersCommand;
 use crate::protocol::set::spop::SPopCommand;
+use crate::protocol::set::srandmember::SRandMemberCommand;
 use crate::protocol::set::srem::SRemCommand;
+use crate::protocol::set::sunion::SUnionCommand;
 use crate::protocol::string::append::AppendCommand;
 use crate::protocol::string::decr::DecrCommand;
 use crate::protocol::string::decrby::DecrByCommand;
@@ -101,7 +104,6 @@ use tokio::select;
 use tokio::sync::watch;
 use tokio_util::codec::Framed;
 use tracing::{error, warn};
-use crate::protocol::set::srandmember::SRandMemberCommand;
 
 #[async_trait]
 pub trait Command: Send + Sync {
@@ -321,6 +323,8 @@ impl CommandFactory {
         factory.register("SISMEMBER", SIsMemberCommand);
         factory.register("SPOP", SPopCommand);
         factory.register("SRANDMEMBER", SRandMemberCommand);
+        factory.register("SINTER", SInterCommand);
+        factory.register("SUNION", SUnionCommand);
         // ZSet commands
         factory.register("ZADD", ZAddCommand);
         factory.register("ZRANGE", ZRangeCommand);

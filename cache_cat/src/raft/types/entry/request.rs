@@ -27,6 +27,7 @@ pub struct Request {
     pub number: u64,
     pub operation: Operation,
 }
+
 impl Request {
     #[inline]
     pub fn new(write_clock: u64, db_number: u16, operation: Operation) -> Self {
@@ -100,6 +101,8 @@ impl fmt::Display for Request {
                 ReadOperation::BitPos(req) => write!(f, "BitPos: {}", req),
                 ReadOperation::SCard(req) => write!(f, "SCard: {}", req),
                 ReadOperation::SRandMember(req) => write!(f, "SRandMember: {}", req),
+                ReadOperation::SInter(req) => write!(f, "SInter: {}", req),
+                ReadOperation::SUnion(req) => write!(f, "SUnion: {}", req),
             },
             Operation::Base(op) => match op {
                 BaseOperation::Empty => write!(f, "None"),
@@ -151,6 +154,7 @@ impl fmt::Display for Request {
         }
     }
 }
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AtomicRequest {
     pub request: BaseOperation,

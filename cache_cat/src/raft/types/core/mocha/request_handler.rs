@@ -37,6 +37,8 @@ pub fn read_request(
         ReadOperation::BitPos(param) => my_cache.execute_read(param, db_number, read_clock),
         ReadOperation::SCard(param) => my_cache.execute_read(param, db_number, read_clock),
         ReadOperation::SRandMember(param) => my_cache.execute_read(param, db_number, read_clock),
+        ReadOperation::SInter(param) => my_cache.execute_multi_read(param, db_number, read_clock),
+        ReadOperation::SUnion(param) => my_cache.execute_multi_read(param, db_number, read_clock),
     }
 }
 

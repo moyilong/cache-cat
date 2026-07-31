@@ -16,9 +16,11 @@ use crate::protocol::list::lindex::LIndexParams;
 use crate::protocol::list::llen::LLenParams;
 use crate::protocol::list::lrange::LRangeParams;
 use crate::protocol::set::scard::SCardParams;
+use crate::protocol::set::sinter::SInterParams;
 use crate::protocol::set::sismember::SIsMemberParams;
 use crate::protocol::set::smembers::SMembersParams;
 use crate::protocol::set::srandmember::SRandMemberParams;
+use crate::protocol::set::sunion::SUnionParams;
 use crate::protocol::string::get::GetParams;
 use crate::protocol::string::len::StrLenParams;
 use crate::protocol::string::mget::MgetParams;
@@ -54,4 +56,6 @@ pub enum ReadOperation {
     BitPos(BitPosParams),
     SCard(SCardParams),
     SRandMember(SRandMemberParams),
+    SInter(SInterParams),
+    SUnion(SUnionParams),
 }
