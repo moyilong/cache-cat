@@ -103,6 +103,7 @@ impl fmt::Display for Request {
                 ReadOperation::SRandMember(req) => write!(f, "SRandMember: {}", req),
                 ReadOperation::SInter(req) => write!(f, "SInter: {}", req),
                 ReadOperation::SUnion(req) => write!(f, "SUnion: {}", req),
+                ReadOperation::SDiff(req) => write!(f, "SDiff: {}", req),
             },
             Operation::Base(op) => match op {
                 BaseOperation::Empty => write!(f, "None"),
