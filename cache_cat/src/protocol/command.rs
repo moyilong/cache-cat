@@ -63,6 +63,7 @@ use crate::protocol::set::sadd::SAddCommand;
 use crate::protocol::set::scard::SCardCommand;
 use crate::protocol::set::sdiff::SDiffCommand;
 use crate::protocol::set::sinter::SInterCommand;
+use crate::protocol::set::sinterstore::SInterStoreCommand;
 use crate::protocol::set::sismember::SIsMemberCommand;
 use crate::protocol::set::smembers::SMembersCommand;
 use crate::protocol::set::spop::SPopCommand;
@@ -325,6 +326,7 @@ impl CommandFactory {
         factory.register("SPOP", SPopCommand);
         factory.register("SRANDMEMBER", SRandMemberCommand);
         factory.register("SINTER", SInterCommand);
+        factory.register("SINTERSTORE", SInterStoreCommand);
         factory.register("SUNION", SUnionCommand);
         factory.register("SDIFF", SDiffCommand);
         // ZSet commands
