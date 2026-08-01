@@ -134,6 +134,9 @@ pub fn do_request(
                 }
                 Value::Array(Some(vec))
             }
+            RedisOperation::RedisSInterStore(param) => {
+                my_cache.redis_sinterstore(param, update, external)
+            }
         },
     }
 }
