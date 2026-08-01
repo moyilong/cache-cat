@@ -1,4 +1,5 @@
 use crate::error::ProtocolError;
+use crate::protocol::key::del::DelReq;
 use crate::protocol::set::sadd::SAddReq;
 use crate::protocol::set::sinterstore::SInterStoreParams;
 use crate::protocol::set::srem::SRemReq;
@@ -70,11 +71,15 @@ impl MyCache {
             .map(|res| res.into_iter().collect())
             .unwrap_or_default();
 
-        let add = SAddReq {
-            key: param.key,
-            elements,
-        };
+        let key = param.key;
 
+        if cache.mocha.get_entry(&key).is_some() {
+            let del = DelReq { key: key.clone() };
+
+            self.del(del, update);
+        }
+
+        let add = SAddReq { key, elements };
         self.s_add(add, update)
     }
 }
