@@ -47,6 +47,7 @@ use crate::protocol::set::spop::SPopCommand;
 use crate::protocol::set::srandmember::SRandMemberCommand;
 use crate::protocol::set::srem::SRemCommand;
 use crate::protocol::set::sunion::SUnionCommand;
+use crate::protocol::set::sunionstore::SUnionStoreCommand;
 use crate::protocol::string::append::AppendCommand;
 use crate::protocol::string::decr::DecrCommand;
 use crate::protocol::string::decrby::DecrByCommand;
@@ -183,6 +184,7 @@ impl RaftCommandFactory {
         factory.register("SUNION", SUnionCommand);
         factory.register("SDIFF", SDiffCommand);
         factory.register("SINTERSTORE", SInterStoreCommand);
+        factory.register("SUNIONSTORE", SUnionStoreCommand);
         factory
     }
 

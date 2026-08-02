@@ -137,6 +137,9 @@ pub fn do_request(
             RedisOperation::RedisSInterStore(param) => {
                 my_cache.redis_sinterstore(param, update, external)
             }
+            RedisOperation::RedisSUnionStore(param) => {
+                my_cache.redis_sunionstore(param, update, external)
+            }
         },
     }
 }
