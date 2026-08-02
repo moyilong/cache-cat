@@ -9,3 +9,4 @@ pub mod spop;
 pub mod srandmember;
 pub mod srem;
 pub mod sunion;
+pub mod sunionstore;

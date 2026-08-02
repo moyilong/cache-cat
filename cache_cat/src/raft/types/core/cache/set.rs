@@ -3,6 +3,7 @@ use crate::protocol::key::del::DelReq;
 use crate::protocol::set::sadd::SAddReq;
 use crate::protocol::set::sinterstore::SInterStoreParams;
 use crate::protocol::set::srem::SRemReq;
+use crate::protocol::set::sunionstore::SUnionStoreParams;
 use crate::raft::types::core::mocha::mocha::{MyCache, Update};
 use crate::raft::types::core::response_value::Value;
 use crate::raft::types::core::value_object::ValueObject;
@@ -70,6 +71,51 @@ impl MyCache {
         let elements = results
             .map(|res| res.into_iter().collect())
             .unwrap_or_default();
+
+        let key = param.key;
+
+        if cache.mocha.get_entry(&key).is_some() {
+            let del = DelReq { key: key.clone() };
+
+            self.del(del, update);
+        }
+
+        let add = SAddReq { key, elements };
+        self.s_add(add, update)
+    }
+
+    pub fn redis_sunionstore(
+        &self,
+        param: SUnionStoreParams,
+        update: &mut Update<'_>,
+        external: bool,
+    ) -> Value {
+        let _exclusive_lock = if external {
+            Some(self.read_lock.write())
+        } else {
+            None
+        };
+
+        let cache = match self.get_cache(update.db_number) {
+            Err(err) => return err,
+            Ok(cache) => cache,
+        };
+
+        // use `HashSet` for quickly insert
+        let mut results: HashSet<Bytes> = Default::default();
+        for key in param.keys {
+            let Some(value) = cache.mocha.get_entry(&key) else {
+                continue;
+            };
+
+            let ValueObject::Set(data) = value.value.data else {
+                return ProtocolError::InvalidArgument("There is a value that is not a set").into();
+            };
+
+            results.extend(data.lock().iter().cloned());
+        }
+
+        let elements = results.into_iter().collect();
 
         let key = param.key;
 
