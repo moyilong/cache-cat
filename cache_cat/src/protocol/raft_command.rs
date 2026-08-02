@@ -38,7 +38,9 @@ use crate::protocol::list::rpush::RPushCommand;
 use crate::protocol::lua::eval::EvalCommand;
 use crate::protocol::set::sadd::SAddCommand;
 use crate::protocol::set::scard::SCardCommand;
+use crate::protocol::set::sdiff::SDiffCommand;
 use crate::protocol::set::sinter::SInterCommand;
+use crate::protocol::set::sinterstore::SInterStoreCommand;
 use crate::protocol::set::sismember::SIsMemberCommand;
 use crate::protocol::set::smembers::SMembersCommand;
 use crate::protocol::set::spop::SPopCommand;
@@ -179,6 +181,8 @@ impl RaftCommandFactory {
         factory.register("SRANDMEMBER", SRandMemberCommand);
         factory.register("SINTER", SInterCommand);
         factory.register("SUNION", SUnionCommand);
+        factory.register("SDIFF", SDiffCommand);
+        factory.register("SINTERSTORE", SInterStoreCommand);
         factory
     }
 
