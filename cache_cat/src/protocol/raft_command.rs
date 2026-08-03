@@ -39,6 +39,7 @@ use crate::protocol::lua::eval::EvalCommand;
 use crate::protocol::set::sadd::SAddCommand;
 use crate::protocol::set::scard::SCardCommand;
 use crate::protocol::set::sdiff::SDiffCommand;
+use crate::protocol::set::sdiffstore::SDiffStoreCommand;
 use crate::protocol::set::sinter::SInterCommand;
 use crate::protocol::set::sinterstore::SInterStoreCommand;
 use crate::protocol::set::sismember::SIsMemberCommand;
@@ -185,6 +186,7 @@ impl RaftCommandFactory {
         factory.register("SDIFF", SDiffCommand);
         factory.register("SINTERSTORE", SInterStoreCommand);
         factory.register("SUNIONSTORE", SUnionStoreCommand);
+        factory.register("SDIFFSTORE", SDiffStoreCommand);
         factory
     }
 
