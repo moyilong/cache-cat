@@ -62,6 +62,7 @@ use crate::protocol::server::time::TimeCommand;
 use crate::protocol::set::sadd::SAddCommand;
 use crate::protocol::set::scard::SCardCommand;
 use crate::protocol::set::sdiff::SDiffCommand;
+use crate::protocol::set::sdiffstore::SDiffStoreCommand;
 use crate::protocol::set::sinter::SInterCommand;
 use crate::protocol::set::sinterstore::SInterStoreCommand;
 use crate::protocol::set::sismember::SIsMemberCommand;
@@ -331,6 +332,7 @@ impl CommandFactory {
         factory.register("SUNION", SUnionCommand);
         factory.register("SUNIONSTORE", SUnionStoreCommand);
         factory.register("SDIFF", SDiffCommand);
+        factory.register("SDIFFSTORE", SDiffStoreCommand);
         // ZSet commands
         factory.register("ZADD", ZAddCommand);
         factory.register("ZRANGE", ZRangeCommand);
