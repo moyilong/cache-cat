@@ -26,6 +26,7 @@ use crate::protocol::string::mget::MgetParams;
 use crate::protocol::zset::zrange::ZRangeParams;
 use crate::protocol::zset::zrangegetscore::ZRangeByScoreParams;
 use serde::{Deserialize, Serialize};
+use crate::protocol::key::keys::KeysParams;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum ReadOperation {
@@ -56,4 +57,5 @@ pub enum ReadOperation {
     SCard(SCardParams),
     SRandMember(SRandMemberParams),
     SInter(SInterParams),
+    Keys(KeysParams)
 }

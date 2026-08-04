@@ -3,6 +3,7 @@ use crate::protocol::key::del::{DelParams, DelReq};
 use crate::protocol::key::expire::ExpireReq;
 use crate::protocol::key::flushall::FlushAllReq;
 use crate::protocol::key::flushdb::FlushDBReq;
+use crate::protocol::key::keys::KeysParams;
 use crate::protocol::key::persist::PersistReq;
 use crate::protocol::key::pexpire::PExpireReq;
 use crate::protocol::key::rename::RenameParams;
@@ -270,5 +271,18 @@ impl MyCache {
 
     pub fn insert(&self, insert_req: InsertReq, update: &mut Update) -> Value {
         self.execute_compute(insert_req, update)
+    }
+
+    pub fn keys(&self, param: KeysParams, db_number: u16, read_clock: Option<u64>) -> Value {
+        let cached = match self.get_cache(db_number) {
+            Err(err) => return err,
+            Ok(cache) => cache,
+        };
+        let keys = cached.mocha.keys(&param.pattern, read_clock);
+        let values: Vec<Value> = keys
+            .into_iter()
+            .map(|b| Value::BulkString(Some(b)))
+            .collect();
+        Value::Array(Some(values))
     }
 }

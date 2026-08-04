@@ -11,3 +11,4 @@ pub mod ttl;
 pub mod type_;
 pub mod flushdb;
 pub mod flushall;
+pub mod keys;

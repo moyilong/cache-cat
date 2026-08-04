@@ -102,6 +102,7 @@ impl fmt::Display for Request {
                 ReadOperation::SCard(req) => write!(f, "SCard: {}", req),
                 ReadOperation::SRandMember(req) => write!(f, "SRandMember: {}", req),
                 ReadOperation::SInter(req) => write!(f, "SInter: {}", req),
+                ReadOperation::Keys(req) => write!(f, "Keys: {}", req),
             },
             Operation::Base(op) => match op {
                 BaseOperation::Empty => write!(f, "None"),

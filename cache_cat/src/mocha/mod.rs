@@ -1,5 +1,6 @@
 mod test;
 
+use crate::utils::glob::GlobMatcher;
 use crate::utils::now_ms;
 use crossbeam_channel::{Receiver, Sender, bounded, select, unbounded};
 use papaya::{Compute, Equivalent, HashMap, LocalGuard, Operation};
@@ -383,7 +384,11 @@ where
     {
         self.get_entry(key).map(|entry| entry.value)
     }
-    pub fn get_with_read_clock<Q>(&self, key: &Q, read_clock: Option<u64>) -> Option<EntrySnapshot<V>>
+    pub fn get_with_read_clock<Q>(
+        &self,
+        key: &Q,
+        read_clock: Option<u64>,
+    ) -> Option<EntrySnapshot<V>>
     where
         K: Borrow<Q>,
         Q: ?Sized + Hash + Ord,
@@ -657,6 +662,44 @@ where
         writer.seek(SeekFrom::Start(end_pos)).await?;
         Ok(entry_count)
     }
+
+    pub fn keys(&self, pattern: &[u8], read_clock: Option<u64>) -> Vec<K>
+    where
+        K: AsRef<[u8]>,
+    {
+        let matcher = GlobMatcher::new(pattern);
+
+        // 和 dump_snapshots_to_writer 一样，
+        // 整次遍历固定使用同一个写逻辑时钟。
+        let write_clock = self.now_logical();
+        let map = self.map.pin();
+        map.iter()
+            .filter_map(|(key, entry)| {
+                if let Some(expire_at) = entry.expire_at {
+                    // 第一层：按照当前写逻辑时钟判断。
+                    // 对应 get_entry：
+                    // write_clock >= expire_at 表示当前已经过期。
+                    if write_clock >= expire_at {
+                        return None;
+                    }
+
+                    // 第二层：按照传入的读逻辑时钟判断。
+                    // 对应 get_with_read_clock：
+                    // expire_at < read_clock 表示在该读时钟下不可见。
+                    if read_clock.is_some_and(|clock| expire_at < clock) {
+                        return None;
+                    }
+                }
+
+                if matcher.matches(key.as_ref()) {
+                    Some(key.clone())
+                } else {
+                    None
+                }
+            })
+            .collect()
+    }
+
     pub fn clear(&self) {
         let mg = self.map.pin();
         mg.clear();

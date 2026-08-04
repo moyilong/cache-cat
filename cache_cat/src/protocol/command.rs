@@ -103,6 +103,7 @@ use tokio::select;
 use tokio::sync::watch;
 use tokio_util::codec::Framed;
 use tracing::{error, warn};
+use crate::protocol::key::keys::KeysCommand;
 
 #[async_trait]
 pub trait Command: Send + Sync {
@@ -292,6 +293,7 @@ impl CommandFactory {
         factory.register("GETSET", GetSetCommand);
         factory.register("FLUSHDB", FlushDBCommand);
         factory.register("FLUSHALL", FlushAllCommand);
+        factory.register("KEYS", KeysCommand);
         // List commands
         factory.register("LPUSH", LPushCommand);
         factory.register("RPUSH", RPushCommand);
