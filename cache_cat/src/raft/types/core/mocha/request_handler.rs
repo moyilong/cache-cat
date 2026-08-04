@@ -38,6 +38,8 @@ pub fn read_request(
         ReadOperation::SCard(param) => my_cache.execute_read(param, db_number, read_clock),
         ReadOperation::SRandMember(param) => my_cache.execute_read(param, db_number, read_clock),
         ReadOperation::SInter(param) => my_cache.execute_multi_read(param, db_number, read_clock),
+        ReadOperation::SUnion(param) => my_cache.execute_multi_read(param, db_number, read_clock),
+        ReadOperation::SDiff(param) => my_cache.execute_multi_read(param, db_number, read_clock),
         ReadOperation::Keys(param) => my_cache.keys(param, db_number, read_clock),
     }
 }
@@ -132,6 +134,15 @@ pub fn do_request(
                     vec.push(do_request(my_cache, operation, update, false));
                 }
                 Value::Array(Some(vec))
+            }
+            RedisOperation::RedisSInterStore(param) => {
+                my_cache.redis_sinterstore(param, update, external)
+            }
+            RedisOperation::RedisSUnionStore(param) => {
+                my_cache.redis_sunionstore(param, update, external)
+            }
+            RedisOperation::RedisSDiffStore(param) => {
+                my_cache.redis_sdiffstore(param, update, external)
             }
         },
     }

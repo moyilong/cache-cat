@@ -1,6 +1,9 @@
 use crate::protocol::key::rename::RenameParams;
 use crate::protocol::key::renamenx::RenameNxParams;
 use crate::protocol::lua::eval::EvalParams;
+use crate::protocol::set::sdiffstore::SDiffStoreParams;
+use crate::protocol::set::sinterstore::SInterStoreParams;
+use crate::protocol::set::sunionstore::SUnionStoreParams;
 use crate::protocol::string::getset::GetSetParams;
 use crate::protocol::string::mset::MsetParams;
 use crate::protocol::string::set::SetParams;
@@ -69,6 +72,9 @@ pub enum RedisOperation {
     RedisRenameNx(RenameNxParams),
     RedisEval(EvalParams),
     RedisExec(ExecParams),
+    RedisSInterStore(SInterStoreParams),
+    RedisSUnionStore(SUnionStoreParams),
+    RedisSDiffStore(SDiffStoreParams),
 }
 
 impl fmt::Display for Request {
@@ -102,6 +108,8 @@ impl fmt::Display for Request {
                 ReadOperation::SCard(req) => write!(f, "SCard: {}", req),
                 ReadOperation::SRandMember(req) => write!(f, "SRandMember: {}", req),
                 ReadOperation::SInter(req) => write!(f, "SInter: {}", req),
+                ReadOperation::SUnion(req) => write!(f, "SUnion: {}", req),
+                ReadOperation::SDiff(req) => write!(f, "SDiff: {}", req),
                 ReadOperation::Keys(req) => write!(f, "Keys: {}", req),
             },
             Operation::Base(op) => match op {
@@ -150,6 +158,9 @@ impl fmt::Display for Request {
                 RedisOperation::RedisExec(req) => write!(f, "RedisExec: {}", req),
                 RedisOperation::RedisRenameNx(req) => write!(f, "RedisRenameNx: {}", req),
                 RedisOperation::RedisGetSet(req) => write!(f, "RedisGetSet: {}", req),
+                RedisOperation::RedisSInterStore(req) => write!(f, "RedisSInterStore: {}", req),
+                RedisOperation::RedisSUnionStore(req) => write!(f, "RedisSUnionStore: {}", req),
+                RedisOperation::RedisSDiffStore(req) => write!(f, "RedisSDiffStore: {}", req),
             },
         }
     }
