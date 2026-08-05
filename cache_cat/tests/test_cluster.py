@@ -154,10 +154,8 @@ r.lpush("list test3", "test3")
 r.ltrim("list test3", 0, 1)
 print(r.lrange("list test3", 0, -1))
 
-r.flushdb()
 print(r.get("test24"))
 r.set("test24", "test24")
-r.flushall()
 print(r.get("test24"))
 r.setbit("test25", 0, 1)
 print(r.bitcount("test25", 0, -1))
@@ -187,3 +185,9 @@ r.spop("test27")
 print(r.smembers("test27"))
 r.sadd("test27", "test")
 print(r.srandmember("test27"))
+
+
+print(r.keys('test*'))
+
+r.zadd("my_zset", {"a": 1, "b": 2, "c": 3})
+print(r.zscore("my_zset", "a"))

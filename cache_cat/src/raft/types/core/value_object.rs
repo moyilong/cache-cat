@@ -165,6 +165,9 @@ impl SortedSet {
 
         removed
     }
+    pub fn zscore(&self, member: &Bytes) -> Option<f64> {
+        self.hash.get(member).cloned()
+    }
 
 
     /// 检查集合是否为空

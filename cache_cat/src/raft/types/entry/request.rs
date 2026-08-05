@@ -111,6 +111,7 @@ impl fmt::Display for Request {
                 ReadOperation::SUnion(req) => write!(f, "SUnion: {}", req),
                 ReadOperation::SDiff(req) => write!(f, "SDiff: {}", req),
                 ReadOperation::Keys(req) => write!(f, "Keys: {}", req),
+                ReadOperation::ZScore(req) => write!(f, "ZScore: {}", req),
             },
             Operation::Base(op) => match op {
                 BaseOperation::Empty => write!(f, "None"),

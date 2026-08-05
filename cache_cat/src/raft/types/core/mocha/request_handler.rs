@@ -41,6 +41,7 @@ pub fn read_request(
         ReadOperation::SUnion(param) => my_cache.execute_multi_read(param, db_number, read_clock),
         ReadOperation::SDiff(param) => my_cache.execute_multi_read(param, db_number, read_clock),
         ReadOperation::Keys(param) => my_cache.keys(param, db_number, read_clock),
+        ReadOperation::ZScore(param) => my_cache.execute_read(param, db_number, read_clock),
     }
 }
 

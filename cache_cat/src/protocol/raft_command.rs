@@ -74,6 +74,7 @@ use std::collections::HashMap;
 use std::fmt;
 use tracing::warn;
 use crate::protocol::key::keys::KeysCommand;
+use crate::protocol::zset::zscore::ZScoreCommand;
 
 pub trait RaftCommand: Send + Sync {
     fn raft_request(&self, items: &[Value]) -> Result<Operation, ProtocolError>;
@@ -189,6 +190,8 @@ impl RaftCommandFactory {
         factory.register("SUNIONSTORE", SUnionStoreCommand);
         factory.register("SDIFFSTORE", SDiffStoreCommand);
         factory.register("KEYS", KeysCommand);
+        factory.register("ZSCORE", ZScoreCommand);
+
         factory
     }
 

@@ -28,6 +28,7 @@ use crate::protocol::key::exists::ExistsCommand;
 use crate::protocol::key::expire::ExpireCommand;
 use crate::protocol::key::flushall::FlushAllCommand;
 use crate::protocol::key::flushdb::FlushDBCommand;
+use crate::protocol::key::keys::KeysCommand;
 use crate::protocol::key::persist::PersistCommand;
 use crate::protocol::key::pexpire::PExpireCommand;
 use crate::protocol::key::pttl::PTtlCommand;
@@ -93,6 +94,7 @@ use crate::protocol::zset::zadd::ZAddCommand;
 use crate::protocol::zset::zrange::ZRangeCommand;
 use crate::protocol::zset::zrangegetscore::ZRangeByScoreCommand;
 use crate::protocol::zset::zrem::ZRemCommand;
+use crate::protocol::zset::zscore::ZScoreCommand;
 use crate::raft::network::connection::Connection;
 use crate::raft::network::redis_server::{RedisServer, RespCodec};
 use crate::raft::types::core::response_value::Value;
@@ -108,7 +110,6 @@ use tokio::select;
 use tokio::sync::watch;
 use tokio_util::codec::Framed;
 use tracing::{error, warn};
-use crate::protocol::key::keys::KeysCommand;
 
 #[async_trait]
 pub trait Command: Send + Sync {
@@ -340,6 +341,7 @@ impl CommandFactory {
         factory.register("ZRANGE", ZRangeCommand);
         factory.register("ZRANGEBYSCORE", ZRangeByScoreCommand);
         factory.register("ZREM", ZRemCommand);
+        factory.register("ZSCORE", ZScoreCommand);
         // Bitmap commands
         factory.register("SETBIT", SetBitCommand);
         factory.register("GETBIT", GetBitCommand);
