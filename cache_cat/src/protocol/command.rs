@@ -91,6 +91,7 @@ use crate::protocol::transaction::discard::DiscardCommand;
 use crate::protocol::transaction::exec::ExecCommand;
 use crate::protocol::transaction::multi::MultiCommand;
 use crate::protocol::zset::zadd::ZAddCommand;
+use crate::protocol::zset::zcard::{ZCardCommand, ZCardParams};
 use crate::protocol::zset::zrange::ZRangeCommand;
 use crate::protocol::zset::zrangegetscore::ZRangeByScoreCommand;
 use crate::protocol::zset::zrem::ZRemCommand;
@@ -342,6 +343,7 @@ impl CommandFactory {
         factory.register("ZRANGEBYSCORE", ZRangeByScoreCommand);
         factory.register("ZREM", ZRemCommand);
         factory.register("ZSCORE", ZScoreCommand);
+        factory.register("ZCARD", ZCardCommand);
         // Bitmap commands
         factory.register("SETBIT", SetBitCommand);
         factory.register("GETBIT", GetBitCommand);

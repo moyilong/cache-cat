@@ -26,10 +26,11 @@ use crate::protocol::set::sunion::SUnionParams;
 use crate::protocol::string::get::GetParams;
 use crate::protocol::string::len::StrLenParams;
 use crate::protocol::string::mget::MgetParams;
+use crate::protocol::zset::zcard::ZCardParams;
 use crate::protocol::zset::zrange::ZRangeParams;
 use crate::protocol::zset::zrangegetscore::ZRangeByScoreParams;
-use serde::{Deserialize, Serialize};
 use crate::protocol::zset::zscore::ZScoreParams;
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum ReadOperation {
@@ -63,5 +64,6 @@ pub enum ReadOperation {
     SUnion(SUnionParams),
     SDiff(SDiffParams),
     Keys(KeysParams),
-    ZScore(ZScoreParams)
+    ZScore(ZScoreParams),
+    ZCard(ZCardParams),
 }

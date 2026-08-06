@@ -177,7 +177,7 @@ print(f"SET结果: {result[0]}")      # 0
 print(f"金币自增结果: {result[1]}")  # 50
 print(f"等级读取: {result[2]}")     # 100
 print(f"金币读取: {result[3]}")     # 50
-print(f"经验自增结果: {result[4]}")  # 1
+print(f"经验自增结果: {result[4]}")  # 1ZCARD
 print(f"经验读取: {result[5]}")     # 1
 
 r.sadd("test27", "test")
@@ -190,4 +190,5 @@ print(r.srandmember("test27"))
 print(r.keys('test*'))
 
 r.zadd("my_zset", {"a": 1, "b": 2, "c": 3})
-print(r.zscore("my_zset", "a"))
+print(r.zscore("my_zset", "b"))
+print(r.zcard("my_zset"))

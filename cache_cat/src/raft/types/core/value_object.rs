@@ -104,6 +104,10 @@ impl SortedSet {
         }
         result
     }
+    #[inline]
+    pub fn len(&self) -> usize {
+        self.hash.len()
+    }
 
     pub fn zrangebyscore(
         &self,
