@@ -193,6 +193,7 @@ impl RaftCommandFactory {
         factory.register("KEYS", KeysCommand);
         factory.register("ZSCORE", ZScoreCommand);
         factory.register("ZCARD", ZCardCommand);
+        factory.register("ZSCORE", ZScoreCommand);
         factory
     }
 

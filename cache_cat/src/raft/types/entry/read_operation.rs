@@ -27,6 +27,7 @@ use crate::protocol::string::get::GetParams;
 use crate::protocol::string::len::StrLenParams;
 use crate::protocol::string::mget::MgetParams;
 use crate::protocol::zset::zcard::ZCardParams;
+use crate::protocol::zset::zcount::ZCountParams;
 use crate::protocol::zset::zrange::ZRangeParams;
 use crate::protocol::zset::zrangegetscore::ZRangeByScoreParams;
 use crate::protocol::zset::zscore::ZScoreParams;
@@ -66,4 +67,5 @@ pub enum ReadOperation {
     Keys(KeysParams),
     ZScore(ZScoreParams),
     ZCard(ZCardParams),
+    ZCount(ZCountParams),
 }

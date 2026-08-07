@@ -344,6 +344,7 @@ impl CommandFactory {
         factory.register("ZREM", ZRemCommand);
         factory.register("ZSCORE", ZScoreCommand);
         factory.register("ZCARD", ZCardCommand);
+        factory.register("ZSCORE", ZScoreCommand);
         // Bitmap commands
         factory.register("SETBIT", SetBitCommand);
         factory.register("GETBIT", GetBitCommand);

@@ -108,6 +108,27 @@ impl SortedSet {
     pub fn len(&self) -> usize {
         self.hash.len()
     }
+    pub fn zcount(&self, min: f64, max: f64, min_exclusive: bool, max_exclusive: bool) -> i64 {
+        use std::ops::Bound;
+
+        if self.tree.is_empty() {
+            return 0;
+        }
+
+        let start = if min_exclusive {
+            Bound::Excluded((OrderedFloat(min), Bytes::from(vec![0xff])))
+        } else {
+            Bound::Included((OrderedFloat(min), Bytes::new()))
+        };
+
+        let end = if max_exclusive {
+            Bound::Excluded((OrderedFloat(max), Bytes::new()))
+        } else {
+            Bound::Included((OrderedFloat(max), Bytes::from(vec![0xff])))
+        };
+
+        self.tree.range((start, end)).count() as i64
+    }
 
     pub fn zrangebyscore(
         &self,
@@ -172,7 +193,6 @@ impl SortedSet {
     pub fn zscore(&self, member: &Bytes) -> Option<f64> {
         self.hash.get(member).cloned()
     }
-
 
     /// 检查集合是否为空
     #[inline]
