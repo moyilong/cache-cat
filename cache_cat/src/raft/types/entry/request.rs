@@ -114,6 +114,7 @@ impl fmt::Display for Request {
                 ReadOperation::ZScore(req) => write!(f, "ZScore: {}", req),
                 ReadOperation::ZCard(req) => write!(f, "ZCard: {}", req),
                 ReadOperation::ZCount(req) =>  write!(f, "ZCount: {}", req),
+                ReadOperation::ZRank(req) => write!(f, "ZRank: {}", req),
             },
             Operation::Base(op) => match op {
                 BaseOperation::Empty => write!(f, "None"),

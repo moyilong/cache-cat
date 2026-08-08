@@ -32,6 +32,7 @@ use crate::protocol::zset::zrange::ZRangeParams;
 use crate::protocol::zset::zrangegetscore::ZRangeByScoreParams;
 use crate::protocol::zset::zscore::ZScoreParams;
 use serde::{Deserialize, Serialize};
+use crate::protocol::zset::zrank::ZRankParams;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum ReadOperation {
@@ -68,4 +69,5 @@ pub enum ReadOperation {
     ZScore(ZScoreParams),
     ZCard(ZCardParams),
     ZCount(ZCountParams),
+    ZRank(ZRankParams),
 }

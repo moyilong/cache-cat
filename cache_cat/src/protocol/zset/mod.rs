@@ -5,3 +5,4 @@ pub mod zrangegetscore;
 pub mod zrem;
 pub mod zscore;
 pub mod zcount;
+pub mod zrank;

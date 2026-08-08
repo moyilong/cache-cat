@@ -76,6 +76,7 @@ use crate::raft::types::entry::request::Operation;
 use std::collections::HashMap;
 use std::fmt;
 use tracing::warn;
+use crate::protocol::zset::zrank::ZRankCommand;
 
 pub trait RaftCommand: Send + Sync {
     fn raft_request(&self, items: &[Value]) -> Result<Operation, ProtocolError>;
@@ -194,6 +195,8 @@ impl RaftCommandFactory {
         factory.register("ZSCORE", ZScoreCommand);
         factory.register("ZCARD", ZCardCommand);
         factory.register("ZSCORE", ZScoreCommand);
+        factory.register("ZRANK", ZRankCommand);
+
         factory
     }
 

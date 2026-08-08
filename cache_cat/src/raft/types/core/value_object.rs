@@ -193,6 +193,19 @@ impl SortedSet {
     pub fn zscore(&self, member: &Bytes) -> Option<f64> {
         self.hash.get(member).cloned()
     }
+    pub fn zrank(&self, member: &Bytes) -> Option<i64> {
+        let member_score = self.hash.get(member)?;
+
+        for (index, (score, current_member)) in self.tree.keys().enumerate() {
+            if score.0 == *member_score
+                && current_member == member
+            {
+                return Some(index as i64);
+            }
+        }
+
+        None
+    }
 
     /// 检查集合是否为空
     #[inline]
