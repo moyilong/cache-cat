@@ -14,8 +14,10 @@ pub mod bitmap;
 pub mod lua_env;
 pub mod pub_sub;
 mod raft_command;
-mod server;
 pub mod sentinel;
+mod server;
+
+mod prelude;
 
 /// Current format version for all encoded types (stored in high 4 bits of flags)
 pub const CURRENT_VERSION: u8 = 1;
