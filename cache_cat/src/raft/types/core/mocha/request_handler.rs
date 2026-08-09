@@ -91,6 +91,7 @@ pub fn base_request(
         BaseOperation::FlushAll(param) => my_cache.flush_all(param, update),
         BaseOperation::BitField(param) => my_cache.bit_field(param, update),
         BaseOperation::SPop(param) => my_cache.s_pop(param, update),
+        BaseOperation::ZPopMin(param) => my_cache.z_pop_min(param, update),
     }
 }
 

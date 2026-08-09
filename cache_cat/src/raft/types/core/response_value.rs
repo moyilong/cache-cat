@@ -362,3 +362,15 @@ impl Value {
         }
     }
 }
+
+impl From<Vec<Bytes>> for Value {
+    #[inline]
+    fn from(value: Vec<Bytes>) -> Self {
+        let values = value
+            .into_iter()
+            .map(|v| Value::BulkString(Some(v)))
+            .collect();
+
+        Self::Array(Some(values))
+    }
+}

@@ -104,10 +104,12 @@ impl SortedSet {
         }
         result
     }
+
     #[inline]
     pub fn len(&self) -> usize {
         self.hash.len()
     }
+
     pub fn zcount(&self, min: f64, max: f64, min_exclusive: bool, max_exclusive: bool) -> i64 {
         use std::ops::Bound;
 
@@ -175,6 +177,7 @@ impl SortedSet {
 
         result
     }
+
     /// 删除指定的成员，返回实际删除的数量
     /// 时间复杂度：O(M * log(N))，M 是要删除的成员数
     pub fn zrem(&mut self, members: &[Bytes]) -> i64 {
@@ -190,16 +193,16 @@ impl SortedSet {
 
         removed
     }
+
     pub fn zscore(&self, member: &Bytes) -> Option<f64> {
         self.hash.get(member).cloned()
     }
+
     pub fn zrank(&self, member: &Bytes) -> Option<i64> {
         let member_score = self.hash.get(member)?;
 
         for (index, (score, current_member)) in self.tree.keys().enumerate() {
-            if score.0 == *member_score
-                && current_member == member
-            {
+            if score.0 == *member_score && current_member == member {
                 return Some(index as i64);
             }
         }
@@ -211,6 +214,28 @@ impl SortedSet {
     #[inline]
     pub fn is_empty(&self) -> bool {
         self.hash.is_empty()
+    }
+
+    pub fn zpop_min(&mut self, count: Option<usize>) -> Vec<(Bytes, f64)> {
+        let count = match count {
+            None => 1,
+            Some(0) => return Vec::default(),
+            Some(count) => count,
+        };
+        let mut values = Vec::with_capacity(count);
+
+        for _ in 0..count {
+            let (score, value) = match self.tree.pop_first() {
+                Some((value, _)) => value,
+                None => break,
+            };
+
+            self.hash.remove(&value);
+
+            values.push((value, score.0));
+        }
+
+        values
     }
 }
 

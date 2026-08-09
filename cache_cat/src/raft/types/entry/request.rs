@@ -113,7 +113,7 @@ impl fmt::Display for Request {
                 ReadOperation::Keys(req) => write!(f, "Keys: {}", req),
                 ReadOperation::ZScore(req) => write!(f, "ZScore: {}", req),
                 ReadOperation::ZCard(req) => write!(f, "ZCard: {}", req),
-                ReadOperation::ZCount(req) =>  write!(f, "ZCount: {}", req),
+                ReadOperation::ZCount(req) => write!(f, "ZCount: {}", req),
                 ReadOperation::ZRank(req) => write!(f, "ZRank: {}", req),
             },
             Operation::Base(op) => match op {
@@ -149,6 +149,7 @@ impl fmt::Display for Request {
                 BaseOperation::FlushAll(req) => write!(f, "FlushAll: {}", req),
                 BaseOperation::SPop(req) => write!(f, "SPop: {}", req),
                 BaseOperation::BitField(req) => write!(f, "BitField: {}", req),
+                BaseOperation::ZPopMin(req) => write!(f, "ZPopMin: {}", req),
             },
             Operation::Redis(op) => match op {
                 RedisOperation::RedisSet(req) => write!(f, "RedisSet: {}", req),

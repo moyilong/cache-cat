@@ -91,9 +91,11 @@ use crate::protocol::transaction::discard::DiscardCommand;
 use crate::protocol::transaction::exec::ExecCommand;
 use crate::protocol::transaction::multi::MultiCommand;
 use crate::protocol::zset::zadd::ZAddCommand;
-use crate::protocol::zset::zcard::{ZCardCommand, ZCardParams};
+use crate::protocol::zset::zcard::ZCardCommand;
+use crate::protocol::zset::zpopmin::ZPopMinCommand;
 use crate::protocol::zset::zrange::ZRangeCommand;
 use crate::protocol::zset::zrangegetscore::ZRangeByScoreCommand;
+use crate::protocol::zset::zrank::ZRankCommand;
 use crate::protocol::zset::zrem::ZRemCommand;
 use crate::protocol::zset::zscore::ZScoreCommand;
 use crate::raft::network::connection::Connection;
@@ -111,7 +113,6 @@ use tokio::select;
 use tokio::sync::watch;
 use tokio_util::codec::Framed;
 use tracing::{error, warn};
-use crate::protocol::zset::zrank::ZRankCommand;
 
 #[async_trait]
 pub trait Command: Send + Sync {
@@ -347,6 +348,7 @@ impl CommandFactory {
         factory.register("ZCARD", ZCardCommand);
         factory.register("ZSCORE", ZScoreCommand);
         factory.register("ZRANK", ZRankCommand);
+        factory.register("ZPOPMIN", ZPopMinCommand);
         // Bitmap commands
         factory.register("SETBIT", SetBitCommand);
         factory.register("GETBIT", GetBitCommand);
