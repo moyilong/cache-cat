@@ -30,9 +30,9 @@ use crate::protocol::zset::zcard::ZCardParams;
 use crate::protocol::zset::zcount::ZCountParams;
 use crate::protocol::zset::zrange::ZRangeParams;
 use crate::protocol::zset::zrangegetscore::ZRangeByScoreParams;
+use crate::protocol::zset::zrank::ZRankParams;
 use crate::protocol::zset::zscore::ZScoreParams;
 use serde::{Deserialize, Serialize};
-use crate::protocol::zset::zrank::ZRankParams;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum ReadOperation {
