@@ -192,4 +192,8 @@ print(r.keys('test*'))
 r.zadd("my_zset", {"a": 1, "b": 2, "c": 3})
 print(r.zscore("my_zset", "b"))
 print(r.zcard("my_zset"))
-print(r.zcount("my_zset", "d"))
+
+
+r.set("test28", "test")
+print(r.unlink("test28"))
+print(r.get("test28"))

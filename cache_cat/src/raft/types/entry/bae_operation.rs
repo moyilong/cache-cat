@@ -10,6 +10,7 @@ use crate::protocol::key::flushall::FlushAllReq;
 use crate::protocol::key::flushdb::FlushDBReq;
 use crate::protocol::key::persist::PersistReq;
 use crate::protocol::key::pexpire::PExpireReq;
+use crate::protocol::key::unlink::UnlinkReq;
 use crate::protocol::list::lpop::LPopReq;
 use crate::protocol::list::lpush::LPushReq;
 use crate::protocol::list::lrem::LRemReq;
@@ -77,6 +78,7 @@ pub enum BaseOperation {
     SAdd(SAddReq),
     SRem(SRemReq),
     SPop(SPopReq),
+    Unlink(UnlinkReq),
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]

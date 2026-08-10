@@ -26,6 +26,7 @@ use crate::protocol::key::rename::RenameCommand;
 use crate::protocol::key::renamenx::RenameNxCommand;
 use crate::protocol::key::ttl::TtlCommand;
 use crate::protocol::key::type_::TypeCommand;
+use crate::protocol::key::unlink::UnlinkCommand;
 use crate::protocol::list::lindex::LIndexCommand;
 use crate::protocol::list::llen::LLenCommand;
 use crate::protocol::list::lpop::LPopCommand;
@@ -198,7 +199,7 @@ impl RaftCommandFactory {
         factory.register("ZSCORE", ZScoreCommand);
         factory.register("ZRANK", ZRankCommand);
         factory.register("ZPOPMIN", ZPopMinCommand);
-
+        factory.register("UNLINK", UnlinkCommand);
         factory
     }
 

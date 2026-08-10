@@ -8,6 +8,7 @@ use crate::protocol::key::persist::PersistReq;
 use crate::protocol::key::pexpire::PExpireReq;
 use crate::protocol::key::rename::RenameParams;
 use crate::protocol::key::renamenx::RenameNxParams;
+use crate::protocol::key::unlink::{UnlinkParams, UnlinkReq};
 use crate::protocol::set::spop::SPopReq;
 use crate::raft::types::core::mocha::cas::ComputeCommand;
 use crate::raft::types::core::mocha::mocha::{MyCache, MyValue, Update, UpdateType};
@@ -163,6 +164,77 @@ impl MyCache {
 
     pub fn p_expire(&self, param: PExpireReq, update: &mut Update) -> Value {
         self.execute_compute(param, update)
+    }
+
+    pub fn redis_unlink(
+        &self,
+        params: UnlinkParams,
+        update: &mut Update<'_>,
+        external: bool,
+    ) -> Value {
+        let mut count = 0;
+        let _exclusive_lock = if external {
+            Some(self.read_lock.write())
+        } else {
+            None
+        };
+        for key in params.keys {
+            let del = UnlinkReq { key };
+            match self.unlink(del, update) {
+                Value::Error(err) => return Value::Error(err),
+                Value::Integer(num) => count += num,
+                _ => {}
+            }
+        }
+        Value::Integer(count)
+    }
+
+    pub fn unlink(&self, del_req: UnlinkReq, update: &mut Update) -> Value {
+        let cache = match self.get_cache(update.db_number) {
+            Err(err) => return err,
+            Ok(cache) => &cache.mocha,
+        };
+        //是否删除了元素
+        match update.update_type {
+            UpdateType::None => {
+                let existed = cache.unlink(&del_req.key);
+                if existed {
+                    Value::Integer(1)
+                } else {
+                    Value::Integer(0)
+                }
+            }
+
+            UpdateType::Snapshot(queue) => {
+                // 计算 version
+                let version = if let Some(entry) = cache.get(&del_req.key) {
+                    entry.version + 1
+                } else {
+                    1
+                };
+                queue.push(AtomicRequest {
+                    version,
+                    request: BaseOperation::Unlink(del_req.clone()),
+                    write_clock: update.write_clock,
+                });
+
+                let existed = cache.unlink(&del_req.key);
+                if existed {
+                    Value::Integer(1)
+                } else {
+                    Value::Integer(0)
+                }
+            }
+            UpdateType::CAS(cas_version) => {
+                if let Some(entry) = cache.get(&del_req.key)
+                    && entry.version == *cas_version - 1
+                {
+                    cache.remove(&del_req.key);
+                    return Value::Integer(1);
+                }
+                Value::Integer(0)
+            }
+        }
     }
 
     pub fn del(&self, del_req: DelReq, update: &mut Update) -> Value {

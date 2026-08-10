@@ -92,6 +92,7 @@ pub fn base_request(
         BaseOperation::BitField(param) => my_cache.bit_field(param, update),
         BaseOperation::SPop(param) => my_cache.s_pop(param, update),
         BaseOperation::ZPopMin(param) => my_cache.z_pop_min(param, update),
+        BaseOperation::Unlink(param) => my_cache.unlink(param, update),
     }
 }
 
@@ -149,6 +150,7 @@ pub fn do_request(
             RedisOperation::RedisSDiffStore(param) => {
                 my_cache.redis_sdiffstore(param, update, external)
             }
+            RedisOperation::RedisUnlink(param) => my_cache.redis_unlink(param, update, external),
         },
     }
 }
