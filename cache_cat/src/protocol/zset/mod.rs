@@ -7,3 +7,4 @@ pub mod zrangegetscore;
 pub mod zrank;
 pub mod zrem;
 pub mod zscore;
+pub mod zrevrank;

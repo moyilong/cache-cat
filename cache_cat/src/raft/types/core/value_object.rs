@@ -199,17 +199,21 @@ impl SortedSet {
     }
 
     pub fn zrank(&self, member: &Bytes) -> Option<i64> {
-        let member_score = self.hash.get(member)?;
-
-        for (index, (score, current_member)) in self.tree.keys().enumerate() {
-            if score.0 == *member_score && current_member == member {
-                return Some(index as i64);
-            }
-        }
-
-        None
+        self.hash.get(member)?;
+        self.tree
+            .keys()
+            .position(|(_, current_member)| current_member == member)
+            .map(|rank| rank as i64)
     }
 
+    pub fn zrevrank(&self, member: &Bytes) -> Option<i64> {
+        self.hash.get(member)?;
+        self.tree
+            .keys()
+            .rev()
+            .position(|(_, current_member)| current_member == member)
+            .map(|rank| rank as i64)
+    }
     /// 检查集合是否为空
     #[inline]
     pub fn is_empty(&self) -> bool {

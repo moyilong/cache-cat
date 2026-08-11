@@ -72,6 +72,7 @@ use crate::protocol::zset::zrange::ZRangeCommand;
 use crate::protocol::zset::zrangegetscore::ZRangeByScoreCommand;
 use crate::protocol::zset::zrank::ZRankCommand;
 use crate::protocol::zset::zrem::ZRemCommand;
+use crate::protocol::zset::zrevrank::ZRevRankCommand;
 use crate::protocol::zset::zscore::ZScoreCommand;
 use crate::raft::types::core::response_value::Value;
 use crate::raft::types::entry::read_operation::ReadOperation;
@@ -200,6 +201,7 @@ impl RaftCommandFactory {
         factory.register("ZRANK", ZRankCommand);
         factory.register("ZPOPMIN", ZPopMinCommand);
         factory.register("UNLINK", UnlinkCommand);
+        factory.register("ZREVRank", ZRevRankCommand);
         factory
     }
 

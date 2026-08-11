@@ -114,6 +114,7 @@ use tokio::select;
 use tokio::sync::watch;
 use tokio_util::codec::Framed;
 use tracing::{error, warn};
+use crate::protocol::zset::zrevrank::ZRevRankCommand;
 
 #[async_trait]
 pub trait Command: Send + Sync {
@@ -351,6 +352,7 @@ impl CommandFactory {
         factory.register("ZSCORE", ZScoreCommand);
         factory.register("ZRANK", ZRankCommand);
         factory.register("ZPOPMIN", ZPopMinCommand);
+        factory.register("ZREVRank", ZRevRankCommand);
         // Bitmap commands
         factory.register("SETBIT", SetBitCommand);
         factory.register("GETBIT", GetBitCommand);
