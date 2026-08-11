@@ -9,6 +9,7 @@ use crate::protocol::hash::hlen::HLenParams;
 use crate::protocol::hash::hmget::HMGetParams;
 use crate::protocol::hash::hvals::HValsParams;
 use crate::protocol::key::exists::ExistsParams;
+use crate::protocol::key::keys::KeysParams;
 use crate::protocol::key::pttl::PTtlParams;
 use crate::protocol::key::ttl::TtlParams;
 use crate::protocol::key::type_::TypeParams;
@@ -25,8 +26,13 @@ use crate::protocol::set::sunion::SUnionParams;
 use crate::protocol::string::get::GetParams;
 use crate::protocol::string::len::StrLenParams;
 use crate::protocol::string::mget::MgetParams;
+use crate::protocol::zset::zcard::ZCardParams;
+use crate::protocol::zset::zcount::ZCountParams;
 use crate::protocol::zset::zrange::ZRangeParams;
 use crate::protocol::zset::zrangegetscore::ZRangeByScoreParams;
+use crate::protocol::zset::zrank::ZRankParams;
+use crate::protocol::zset::zrevrank::ZRevRankParams;
+use crate::protocol::zset::zscore::ZScoreParams;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -60,4 +66,10 @@ pub enum ReadOperation {
     SInter(SInterParams),
     SUnion(SUnionParams),
     SDiff(SDiffParams),
+    Keys(KeysParams),
+    ZScore(ZScoreParams),
+    ZCard(ZCardParams),
+    ZCount(ZCountParams),
+    ZRank(ZRankParams),
+    ZRevRank(ZRevRankParams),
 }

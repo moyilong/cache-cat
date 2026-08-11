@@ -28,6 +28,7 @@ use crate::protocol::key::exists::ExistsCommand;
 use crate::protocol::key::expire::ExpireCommand;
 use crate::protocol::key::flushall::FlushAllCommand;
 use crate::protocol::key::flushdb::FlushDBCommand;
+use crate::protocol::key::keys::KeysCommand;
 use crate::protocol::key::persist::PersistCommand;
 use crate::protocol::key::pexpire::PExpireCommand;
 use crate::protocol::key::pttl::PTtlCommand;
@@ -35,6 +36,7 @@ use crate::protocol::key::rename::RenameCommand;
 use crate::protocol::key::renamenx::RenameNxCommand;
 use crate::protocol::key::ttl::TtlCommand;
 use crate::protocol::key::type_::TypeCommand;
+use crate::protocol::key::unlink::UnlinkCommand;
 use crate::protocol::list::lindex::LIndexCommand;
 use crate::protocol::list::llen::LLenCommand;
 use crate::protocol::list::lpop::LPopCommand;
@@ -62,6 +64,7 @@ use crate::protocol::server::time::TimeCommand;
 use crate::protocol::set::sadd::SAddCommand;
 use crate::protocol::set::scard::SCardCommand;
 use crate::protocol::set::sdiff::SDiffCommand;
+use crate::protocol::set::sdiffstore::SDiffStoreCommand;
 use crate::protocol::set::sinter::SInterCommand;
 use crate::protocol::set::sinterstore::SInterStoreCommand;
 use crate::protocol::set::sismember::SIsMemberCommand;
@@ -70,6 +73,7 @@ use crate::protocol::set::spop::SPopCommand;
 use crate::protocol::set::srandmember::SRandMemberCommand;
 use crate::protocol::set::srem::SRemCommand;
 use crate::protocol::set::sunion::SUnionCommand;
+use crate::protocol::set::sunionstore::SUnionStoreCommand;
 use crate::protocol::string::append::AppendCommand;
 use crate::protocol::string::decr::DecrCommand;
 use crate::protocol::string::decrby::DecrByCommand;
@@ -88,9 +92,13 @@ use crate::protocol::transaction::discard::DiscardCommand;
 use crate::protocol::transaction::exec::ExecCommand;
 use crate::protocol::transaction::multi::MultiCommand;
 use crate::protocol::zset::zadd::ZAddCommand;
+use crate::protocol::zset::zcard::ZCardCommand;
+use crate::protocol::zset::zpopmin::ZPopMinCommand;
 use crate::protocol::zset::zrange::ZRangeCommand;
 use crate::protocol::zset::zrangegetscore::ZRangeByScoreCommand;
+use crate::protocol::zset::zrank::ZRankCommand;
 use crate::protocol::zset::zrem::ZRemCommand;
+use crate::protocol::zset::zscore::ZScoreCommand;
 use crate::raft::network::connection::Connection;
 use crate::raft::network::redis_server::{RedisServer, RespCodec};
 use crate::raft::types::core::response_value::Value;
@@ -106,6 +114,7 @@ use tokio::select;
 use tokio::sync::watch;
 use tokio_util::codec::Framed;
 use tracing::{error, warn};
+use crate::protocol::zset::zrevrank::ZRevRankCommand;
 
 #[async_trait]
 pub trait Command: Send + Sync {
@@ -295,6 +304,8 @@ impl CommandFactory {
         factory.register("GETSET", GetSetCommand);
         factory.register("FLUSHDB", FlushDBCommand);
         factory.register("FLUSHALL", FlushAllCommand);
+        factory.register("KEYS", KeysCommand);
+        factory.register("UNLINK", UnlinkCommand);
         // List commands
         factory.register("LPUSH", LPushCommand);
         factory.register("RPUSH", RPushCommand);
@@ -328,12 +339,20 @@ impl CommandFactory {
         factory.register("SINTER", SInterCommand);
         factory.register("SINTERSTORE", SInterStoreCommand);
         factory.register("SUNION", SUnionCommand);
+        factory.register("SUNIONSTORE", SUnionStoreCommand);
         factory.register("SDIFF", SDiffCommand);
+        factory.register("SDIFFSTORE", SDiffStoreCommand);
         // ZSet commands
         factory.register("ZADD", ZAddCommand);
         factory.register("ZRANGE", ZRangeCommand);
         factory.register("ZRANGEBYSCORE", ZRangeByScoreCommand);
         factory.register("ZREM", ZRemCommand);
+        factory.register("ZSCORE", ZScoreCommand);
+        factory.register("ZCARD", ZCardCommand);
+        factory.register("ZSCORE", ZScoreCommand);
+        factory.register("ZRANK", ZRankCommand);
+        factory.register("ZPOPMIN", ZPopMinCommand);
+        factory.register("ZREVRank", ZRevRankCommand);
         // Bitmap commands
         factory.register("SETBIT", SetBitCommand);
         factory.register("GETBIT", GetBitCommand);

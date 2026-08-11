@@ -105,6 +105,33 @@ impl SortedSet {
         result
     }
 
+    #[inline]
+    pub fn len(&self) -> usize {
+        self.hash.len()
+    }
+
+    pub fn zcount(&self, min: f64, max: f64, min_exclusive: bool, max_exclusive: bool) -> i64 {
+        use std::ops::Bound;
+
+        if self.tree.is_empty() {
+            return 0;
+        }
+
+        let start = if min_exclusive {
+            Bound::Excluded((OrderedFloat(min), Bytes::from(vec![0xff])))
+        } else {
+            Bound::Included((OrderedFloat(min), Bytes::new()))
+        };
+
+        let end = if max_exclusive {
+            Bound::Excluded((OrderedFloat(max), Bytes::new()))
+        } else {
+            Bound::Included((OrderedFloat(max), Bytes::from(vec![0xff])))
+        };
+
+        self.tree.range((start, end)).count() as i64
+    }
+
     pub fn zrangebyscore(
         &self,
         min: f64,
@@ -150,6 +177,7 @@ impl SortedSet {
 
         result
     }
+
     /// 删除指定的成员，返回实际删除的数量
     /// 时间复杂度：O(M * log(N))，M 是要删除的成员数
     pub fn zrem(&mut self, members: &[Bytes]) -> i64 {
@@ -166,11 +194,52 @@ impl SortedSet {
         removed
     }
 
+    pub fn zscore(&self, member: &Bytes) -> Option<f64> {
+        self.hash.get(member).cloned()
+    }
 
+    pub fn zrank(&self, member: &Bytes) -> Option<i64> {
+        self.hash.get(member)?;
+        self.tree
+            .keys()
+            .position(|(_, current_member)| current_member == member)
+            .map(|rank| rank as i64)
+    }
+
+    pub fn zrevrank(&self, member: &Bytes) -> Option<i64> {
+        self.hash.get(member)?;
+        self.tree
+            .keys()
+            .rev()
+            .position(|(_, current_member)| current_member == member)
+            .map(|rank| rank as i64)
+    }
     /// 检查集合是否为空
     #[inline]
     pub fn is_empty(&self) -> bool {
         self.hash.is_empty()
+    }
+
+    pub fn zpop_min(&mut self, count: Option<usize>) -> Vec<(Bytes, f64)> {
+        let count = match count {
+            None => 1,
+            Some(0) => return Vec::default(),
+            Some(count) => count,
+        };
+        let mut values = Vec::with_capacity(count);
+
+        for _ in 0..count {
+            let (score, value) = match self.tree.pop_first() {
+                Some((value, _)) => value,
+                None => break,
+            };
+
+            self.hash.remove(&value);
+
+            values.push((value, score.0));
+        }
+
+        values
     }
 }
 

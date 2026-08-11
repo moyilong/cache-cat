@@ -154,10 +154,8 @@ r.lpush("list test3", "test3")
 r.ltrim("list test3", 0, 1)
 print(r.lrange("list test3", 0, -1))
 
-r.flushdb()
 print(r.get("test24"))
 r.set("test24", "test24")
-r.flushall()
 print(r.get("test24"))
 r.setbit("test25", 0, 1)
 print(r.bitcount("test25", 0, -1))
@@ -179,7 +177,7 @@ print(f"SET结果: {result[0]}")      # 0
 print(f"金币自增结果: {result[1]}")  # 50
 print(f"等级读取: {result[2]}")     # 100
 print(f"金币读取: {result[3]}")     # 50
-print(f"经验自增结果: {result[4]}")  # 1
+print(f"经验自增结果: {result[4]}")  # 1ZCARD
 print(f"经验读取: {result[5]}")     # 1
 
 r.sadd("test27", "test")
@@ -187,3 +185,18 @@ r.spop("test27")
 print(r.smembers("test27"))
 r.sadd("test27", "test")
 print(r.srandmember("test27"))
+
+
+print(r.keys('test*'))
+
+r.zadd("my_zset", {"a": 1, "b": 2, "c": 3})
+print(r.zscore("my_zset", "b"))
+print(r.zcard("my_zset"))
+
+
+r.set("test28", "test")
+print(r.unlink("test28"))
+print(r.get("test28"))
+
+r.zadd("my_zset", {"a": 1, "b": 2, "c": 3})
+print(r.zrevrank("my_zset", "a"))

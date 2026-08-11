@@ -40,6 +40,12 @@ pub fn read_request(
         ReadOperation::SInter(param) => my_cache.execute_multi_read(param, db_number, read_clock),
         ReadOperation::SUnion(param) => my_cache.execute_multi_read(param, db_number, read_clock),
         ReadOperation::SDiff(param) => my_cache.execute_multi_read(param, db_number, read_clock),
+        ReadOperation::Keys(param) => my_cache.keys(param, db_number, read_clock),
+        ReadOperation::ZScore(param) => my_cache.execute_read(param, db_number, read_clock),
+        ReadOperation::ZCard(param) => my_cache.execute_read(param, db_number, read_clock),
+        ReadOperation::ZCount(param) => my_cache.execute_read(param, db_number, read_clock),
+        ReadOperation::ZRank(param) => my_cache.execute_read(param, db_number, read_clock),
+        ReadOperation::ZRevRank(param) => my_cache.execute_read(param, db_number, read_clock),
     }
 }
 
@@ -86,6 +92,8 @@ pub fn base_request(
         BaseOperation::FlushAll(param) => my_cache.flush_all(param, update),
         BaseOperation::BitField(param) => my_cache.bit_field(param, update),
         BaseOperation::SPop(param) => my_cache.s_pop(param, update),
+        BaseOperation::ZPopMin(param) => my_cache.z_pop_min(param, update),
+        BaseOperation::Unlink(param) => my_cache.unlink(param, update),
     }
 }
 
@@ -137,6 +145,13 @@ pub fn do_request(
             RedisOperation::RedisSInterStore(param) => {
                 my_cache.redis_sinterstore(param, update, external)
             }
+            RedisOperation::RedisSUnionStore(param) => {
+                my_cache.redis_sunionstore(param, update, external)
+            }
+            RedisOperation::RedisSDiffStore(param) => {
+                my_cache.redis_sdiffstore(param, update, external)
+            }
+            RedisOperation::RedisUnlink(param) => my_cache.redis_unlink(param, update, external),
         },
     }
 }

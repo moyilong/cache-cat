@@ -1,5 +1,6 @@
 mod test;
 
+use crate::utils::glob::GlobMatcher;
 use crate::utils::now_ms;
 use crossbeam_channel::{Receiver, Sender, bounded, select, unbounded};
 use papaya::{Compute, Equivalent, HashMap, LocalGuard, Operation};
@@ -87,6 +88,7 @@ struct TimerItem<K> {
 #[derive(Debug)]
 enum ExpireCommand<K> {
     Schedule { key: K, expire_at: u64 },
+    ScheduleBatch { items: Vec<TimerItem<K>> },
     Advance,
     AdvanceAndWait(Sender<()>),
     HasExpiredByLocalClock { now: u64, done: Sender<bool> },
@@ -383,7 +385,11 @@ where
     {
         self.get_entry(key).map(|entry| entry.value)
     }
-    pub fn get_with_read_clock<Q>(&self, key: &Q, read_clock: Option<u64>) -> Option<EntrySnapshot<V>>
+    pub fn get_with_read_clock<Q>(
+        &self,
+        key: &Q,
+        read_clock: Option<u64>,
+    ) -> Option<EntrySnapshot<V>>
     where
         K: Borrow<Q>,
         Q: ?Sized + Hash + Ord,
@@ -399,7 +405,7 @@ where
                         match read_clock {
                             None => Some(my_value),
                             Some(time) => {
-                                if inner < time {
+                                if inner <= time {
                                     // 写逻辑时钟获取到了但是读逻辑时钟没有获取到
                                     return None;
                                 }
@@ -520,6 +526,24 @@ where
                     Self::remove_expired_if_current_from(map, logic_clock, key, expire_at);
                 } else {
                     wheel.insert(TimerItem { key, expire_at });
+                }
+            }
+            ExpireCommand::ScheduleBatch { items } => {
+                Self::advance_wheel(map, logic_clock, wheel);
+
+                let now = logic_clock.load(Ordering::Relaxed);
+
+                for item in items {
+                    if item.expire_at <= now {
+                        Self::remove_expired_if_current_from(
+                            map,
+                            logic_clock,
+                            item.key,
+                            item.expire_at,
+                        );
+                    } else {
+                        wheel.insert(item);
+                    }
                 }
             }
             ExpireCommand::Advance => {
@@ -657,8 +681,114 @@ where
         writer.seek(SeekFrom::Start(end_pos)).await?;
         Ok(entry_count)
     }
+
+    pub fn keys(&self, pattern: &[u8], read_clock: Option<u64>) -> Vec<K>
+    where
+        K: AsRef<[u8]>,
+    {
+        let matcher = GlobMatcher::new(pattern);
+
+        // 和 dump_snapshots_to_writer 一样，
+        // 整次遍历固定使用同一个写逻辑时钟。
+        let write_clock = self.now_logical();
+        let map = self.map.pin();
+        map.iter()
+            .filter_map(|(key, entry)| {
+                if let Some(expire_at) = entry.expire_at {
+                    // 第一层：按照当前写逻辑时钟判断。
+                    // 对应 get_entry：
+                    // write_clock >= expire_at 表示当前已经过期。
+                    if write_clock >= expire_at {
+                        return None;
+                    }
+
+                    // 第二层：按照传入的读逻辑时钟判断。
+                    // 对应 get_with_read_clock：
+                    // expire_at < read_clock 表示在该读时钟下不可见。
+                    if read_clock.is_some_and(|clock| clock >= expire_at) {
+                        return None;
+                    }
+                }
+
+                if matcher.matches(key.as_ref()) {
+                    Some(key.clone())
+                } else {
+                    None
+                }
+            })
+            .collect()
+    }
+
     pub fn clear(&self) {
         let mg = self.map.pin();
         mg.clear();
+    }
+    pub fn unlink_batch(&self, keys: &[K]) -> usize {
+        let now = self.now_logical();
+        let mg = self.map.pin();
+
+        let mut items = Vec::with_capacity(keys.len());
+
+        for key in keys {
+            let result = mg.compute(key.clone(), |entry| match entry {
+                Some((_, entry)) => {
+                    // 已经过期，不重复 unlink
+                    if entry.expire_at.is_some_and(|at| now >= at) {
+                        return Operation::Abort(());
+                    }
+
+                    // 逻辑上立即过期
+                    let mut new_entry = entry.clone();
+                    new_entry.expire_at = Some(now);
+
+                    Operation::Insert(new_entry)
+                }
+                None => Operation::Abort(()),
+            });
+
+            if matches!(result, Compute::Updated { .. }) {
+                items.push(TimerItem {
+                    key: key.clone(),
+                    expire_at: now,
+                });
+            }
+        }
+
+        let count = items.len();
+
+        if count > 0 {
+            let _ = self.expire_tx.send(ExpireCommand::ScheduleBatch { items });
+        }
+
+        count
+    }
+
+    pub fn unlink(&self, key: &K) -> bool {
+        let now = self.now_logical();
+        let mg = self.map.pin();
+
+        let result = mg.compute(key.clone(), |entry| match entry {
+            Some((_, entry)) => {
+                // 已经过期，视为不存在
+                if entry.expire_at.is_some_and(|at| now >= at) {
+                    return Operation::Abort(());
+                }
+
+                // 逻辑删除：立即设置为已过期
+                let mut new_entry = entry.clone();
+                new_entry.expire_at = Some(now);
+
+                Operation::Insert(new_entry)
+            }
+            None => Operation::Abort(()),
+        });
+
+        if matches!(result, Compute::Updated { .. }) {
+            // 交给后台 expire worker 做物理删除
+            self.enqueue_expiry(key.clone(), Some(now));
+            true
+        } else {
+            false
+        }
     }
 }

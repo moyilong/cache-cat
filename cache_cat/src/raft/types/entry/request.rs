@@ -1,7 +1,10 @@
 use crate::protocol::key::rename::RenameParams;
 use crate::protocol::key::renamenx::RenameNxParams;
+use crate::protocol::key::unlink::UnlinkParams;
 use crate::protocol::lua::eval::EvalParams;
+use crate::protocol::set::sdiffstore::SDiffStoreParams;
 use crate::protocol::set::sinterstore::SInterStoreParams;
+use crate::protocol::set::sunionstore::SUnionStoreParams;
 use crate::protocol::string::getset::GetSetParams;
 use crate::protocol::string::mset::MsetParams;
 use crate::protocol::string::set::SetParams;
@@ -71,6 +74,9 @@ pub enum RedisOperation {
     RedisEval(EvalParams),
     RedisExec(ExecParams),
     RedisSInterStore(SInterStoreParams),
+    RedisSUnionStore(SUnionStoreParams),
+    RedisSDiffStore(SDiffStoreParams),
+    RedisUnlink(UnlinkParams),
 }
 
 impl fmt::Display for Request {
@@ -106,6 +112,12 @@ impl fmt::Display for Request {
                 ReadOperation::SInter(req) => write!(f, "SInter: {}", req),
                 ReadOperation::SUnion(req) => write!(f, "SUnion: {}", req),
                 ReadOperation::SDiff(req) => write!(f, "SDiff: {}", req),
+                ReadOperation::Keys(req) => write!(f, "Keys: {}", req),
+                ReadOperation::ZScore(req) => write!(f, "ZScore: {}", req),
+                ReadOperation::ZCard(req) => write!(f, "ZCard: {}", req),
+                ReadOperation::ZCount(req) => write!(f, "ZCount: {}", req),
+                ReadOperation::ZRank(req) => write!(f, "ZRank: {}", req),
+                ReadOperation::ZRevRank(req) => write!(f, "ZRevRank: {}", req),
             },
             Operation::Base(op) => match op {
                 BaseOperation::Empty => write!(f, "None"),
@@ -140,6 +152,8 @@ impl fmt::Display for Request {
                 BaseOperation::FlushAll(req) => write!(f, "FlushAll: {}", req),
                 BaseOperation::SPop(req) => write!(f, "SPop: {}", req),
                 BaseOperation::BitField(req) => write!(f, "BitField: {}", req),
+                BaseOperation::ZPopMin(req) => write!(f, "ZPopMin: {}", req),
+                BaseOperation::Unlink(req) => write!(f, "Unlink: {}", req),
             },
             Operation::Redis(op) => match op {
                 RedisOperation::RedisSet(req) => write!(f, "RedisSet: {}", req),
@@ -154,6 +168,9 @@ impl fmt::Display for Request {
                 RedisOperation::RedisRenameNx(req) => write!(f, "RedisRenameNx: {}", req),
                 RedisOperation::RedisGetSet(req) => write!(f, "RedisGetSet: {}", req),
                 RedisOperation::RedisSInterStore(req) => write!(f, "RedisSInterStore: {}", req),
+                RedisOperation::RedisSUnionStore(req) => write!(f, "RedisSUnionStore: {}", req),
+                RedisOperation::RedisSDiffStore(req) => write!(f, "RedisSDiffStore: {}", req),
+                RedisOperation::RedisUnlink(req) => write!(f, "RedisUnlink: {}", req),
             },
         }
     }
