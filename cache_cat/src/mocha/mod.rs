@@ -67,18 +67,6 @@ pub enum MochaOperation<V> {
     Abort,
 }
 
-// TODO: Unused or not re-exported enum
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum MochaCompute<K, V> {
-    Unchanged,
-    Inserted(K, EntrySnapshot<V>),
-    Updated {
-        old: (K, EntrySnapshot<V>),
-        new: (K, EntrySnapshot<V>),
-    },
-    Removed(K, EntrySnapshot<V>),
-}
-
 #[derive(Clone, Debug)]
 struct TimerItem<K> {
     key: K,

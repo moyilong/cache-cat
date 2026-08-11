@@ -14,8 +14,6 @@ pub enum Value {
     Array(Option<Vec<Value>>),
     /// Key-value mapping (RESP3: %N map, RESP2: flat array *2N)
     Map(Vec<(Value, Value)>),
-    /// Ordered pairs, e.g. ZRANGE WITHSCORES (RESP3: array of 2-elem arrays, RESP2: flat array *2N)
-    Pairs(Vec<(Value, Value)>),
     /// Boolean (RESP3: #t/#f, RESP2: :1/:0)
     Boolean(bool),
 }
@@ -102,26 +100,6 @@ impl Value {
                     v.encode_to(proto, buf);
                 }
             }
-            Value::Pairs(pairs) => {
-                if proto == 3 {
-                    buf.put_u8(b'*');
-                    buf.put_slice(pairs.len().to_string().as_bytes());
-                    buf.put_slice(b"\r\n");
-                    for (k, v) in pairs {
-                        buf.put_slice(b"*2\r\n");
-                        k.encode_to(proto, buf);
-                        v.encode_to(proto, buf);
-                    }
-                } else {
-                    buf.put_u8(b'*');
-                    buf.put_slice((pairs.len() * 2).to_string().as_bytes());
-                    buf.put_slice(b"\r\n");
-                    for (k, v) in pairs {
-                        k.encode_to(proto, buf);
-                        v.encode_to(proto, buf);
-                    }
-                }
-            }
             Value::Boolean(val) => {
                 if proto == 3 {
                     buf.put_slice(if *val { b"#t\r\n" } else { b"#f\r\n" });
@@ -166,16 +144,7 @@ impl Value {
                 }
                 Ok(mlua::Value::Table(table))
             }
-            Value::Pairs(pairs) => {
-                let table = lua.create_table_with_capacity(pairs.len(), 0)?;
-                for (i, (k, v)) in pairs.into_iter().enumerate() {
-                    let pair = lua.create_table_with_capacity(2, 0)?;
-                    pair.set(1, k.into_lua_value(lua)?)?;
-                    pair.set(2, v.into_lua_value(lua)?)?;
-                    table.set(i + 1, pair)?;
-                }
-                Ok(mlua::Value::Table(table))
-            }
+
         }
     }
 
