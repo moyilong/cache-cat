@@ -144,12 +144,10 @@ impl Value {
                 }
                 Ok(mlua::Value::Table(table))
             }
-
         }
     }
 
-    // TODO: param `lua` is only used in recursion
-    pub fn from_lua(lua_val: LuaValue, lua: &Lua) -> Result<Value, ProtocolError> {
+    pub fn from_lua(lua_val: LuaValue) -> Result<Value, ProtocolError> {
         match lua_val {
             LuaValue::Nil | LuaValue::Boolean(false) => Ok(Value::BulkString(None)),
             LuaValue::Boolean(true) => Ok(Value::Integer(1)),
@@ -213,15 +211,15 @@ impl Value {
                     }
                     let mut redis_arr = Vec::with_capacity(values.len());
                     for v in values {
-                        redis_arr.push(Value::from_lua(v, lua)?);
+                        redis_arr.push(Value::from_lua(v)?);
                     }
                     Ok(Value::Array(Some(redis_arr)))
                 } else {
                     // Mapping Table -> Flatten Key Value Pair Array
                     let mut flat = Vec::with_capacity(pairs.len() * 2);
                     for (k, v) in pairs {
-                        flat.push(Value::from_lua(k, lua)?);
-                        flat.push(Value::from_lua(v, lua)?);
+                        flat.push(Value::from_lua(k)?);
+                        flat.push(Value::from_lua(v)?);
                     }
                     Ok(Value::Array(Some(flat)))
                 }

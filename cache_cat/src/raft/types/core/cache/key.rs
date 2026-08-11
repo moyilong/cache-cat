@@ -11,7 +11,7 @@ use crate::protocol::key::renamenx::RenameNxParams;
 use crate::protocol::key::unlink::{UnlinkParams, UnlinkReq};
 use crate::protocol::set::spop::SPopReq;
 use crate::raft::types::core::mocha::cas::ComputeCommand;
-use crate::raft::types::core::mocha::mocha::{MyCache, MyValue, Update, UpdateType};
+use crate::raft::types::core::mocha::core::{MyCache, MyValue, Update, UpdateType};
 use crate::raft::types::core::response_value::Value;
 use crate::raft::types::entry::bae_operation::{BaseOperation, InsertReq};
 use crate::raft::types::entry::request::AtomicRequest;

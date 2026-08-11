@@ -1,6 +1,6 @@
 use crate::raft::store::statemachine::RaftMetaData;
 use crate::raft::store::statemachine::SnapshotState::{End, Tail};
-use crate::raft::types::core::mocha::mocha::MyCache;
+use crate::raft::types::core::mocha::core::MyCache;
 use crate::raft::types::entry::request::AtomicRequest;
 use crate::raft::types::raft_types::TypeConfig;
 use openraft::SnapshotMeta;
@@ -199,7 +199,7 @@ async fn test_dump_and_load_with_data() {
     use bytes::Bytes;
 
     pub const TEMP_PATH: &str = r"E:\tmp\raft\raft-engine";
-    use crate::raft::types::core::mocha::mocha::MyValue;
+    use crate::raft::types::core::mocha::core::MyValue;
     use crate::raft::types::core::value_object::ValueObject;
     let cache = Arc::new(MyCache::new(1).unwrap());
 

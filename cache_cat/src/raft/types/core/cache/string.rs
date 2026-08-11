@@ -12,7 +12,7 @@ use crate::protocol::string::psetex::PSetExParams;
 use crate::protocol::string::set::{Expiration, SetMode, SetParams, SetReq};
 use crate::protocol::string::setex::SetExParams;
 use crate::protocol::string::setnx::SetNxParams;
-use crate::raft::types::core::mocha::mocha::{MyCache, MyValue, Update};
+use crate::raft::types::core::mocha::core::{MyCache, MyValue, Update};
 use crate::raft::types::core::response_value::Value;
 use crate::raft::types::core::value_object::ValueObject;
 use bytes::Bytes;

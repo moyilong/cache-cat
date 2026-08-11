@@ -1,10 +1,10 @@
 use crate::mocha::{EntrySnapshot, MochaOperation};
-use crate::raft::types::core::mocha::mocha::{MyCache, MyValue, Update, UpdateType};
+use crate::raft::types::core::mocha::core::{MyCache, MyValue, Update, UpdateType};
 use crate::raft::types::core::response_value::Value;
-use crate::raft::types::core::response_value::Value::Integer;
 use crate::raft::types::entry::bae_operation::BaseOperation;
 use crate::raft::types::entry::request::AtomicRequest;
 use bytes::Bytes;
+use tracing::error;
 
 pub trait ComputeCommand: Send + 'static {
     fn key(&self) -> &Bytes;
@@ -94,10 +94,7 @@ impl MyCache {
             UpdateType::CAS(cas_version) => {
                 let expected_version = *cas_version - 1;
                 if entry.value.version != expected_version {
-                    // TODO: the value set there is invalid，
-                    // can remove it or this `if`
-
-                    return_value = Integer(0);
+                    error!("The current value is not as expected!")
                 }
                 let (changed, res) = cmd.mutate(entry, update.write_clock);
                 return_value = res;

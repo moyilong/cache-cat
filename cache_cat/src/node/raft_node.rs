@@ -4,7 +4,7 @@ use crate::raft::application::cluster::Cluster;
 use crate::raft::application::connector::Connector;
 use crate::raft::application::pub_sub::PubSub;
 use crate::raft::network::client::RpcClient;
-use crate::raft::network::network::NetworkFactory;
+use crate::raft::network::raft_network::NetworkFactory;
 use crate::raft::network::rpc::Server;
 use crate::raft::network::tls::TlsContext;
 use crate::raft::store::log_store::LogStore;

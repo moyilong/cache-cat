@@ -1,5 +1,5 @@
 use crate::mocha::EntrySnapshot;
-use crate::raft::types::core::mocha::mocha::{MyCache, MyValue};
+use crate::raft::types::core::mocha::core::{MyCache, MyValue};
 use tokio::io;
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 

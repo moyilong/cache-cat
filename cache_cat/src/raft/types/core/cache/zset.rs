@@ -1,7 +1,7 @@
 use crate::protocol::zset::zadd::ZAddReq;
 use crate::protocol::zset::zpopmin::ZPopMinReq;
 use crate::protocol::zset::zrem::ZRemReq;
-use crate::raft::types::core::mocha::mocha::{MyCache, Update};
+use crate::raft::types::core::mocha::core::{MyCache, Update};
 use crate::raft::types::core::response_value::Value;
 
 impl MyCache {

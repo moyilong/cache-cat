@@ -1,6 +1,6 @@
 use bytes::Bytes;
-use cache_cat::config::cli_arg::load_config_with_cli;
-use cache_cat::config::config::Config;
+use cache_cat::cfg::cli_arg::load_config_with_cli;
+use cache_cat::cfg::config::Config;
 use cache_cat::node::raft_builder::RaftNodeBuilder;
 use cache_cat::protocol::string::set::SetReq;
 use cache_cat::raft::types::entry::bae_operation::BaseOperation::Set;

@@ -3,7 +3,7 @@ use crate::node::parsed_config::ParsedConfig;
 use crate::raft::store::snapshot::snapshot_handler::{
     dump_cache_to_path, get_snapshot_file_name, load_cache_from_path,
 };
-use crate::raft::types::core::mocha::mocha::{MyCache, Update, UpdateType};
+use crate::raft::types::core::mocha::core::{MyCache, Update, UpdateType};
 use crate::raft::types::core::mocha::request_handler::{base_request, do_request};
 use crate::raft::types::core::response_value::Value;
 use crate::raft::types::entry::request::AtomicRequest;
