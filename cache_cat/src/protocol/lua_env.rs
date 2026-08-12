@@ -1,6 +1,6 @@
 use crate::error::ProtocolError;
 use crate::protocol::raft_command::RaftCommandFactory;
-use crate::raft::types::core::mocha::mocha::{MyCache, Update};
+use crate::raft::types::core::mocha::core::{MyCache, Update};
 use crate::raft::types::core::mocha::request_handler::do_request;
 use crate::raft::types::core::response_value::Value;
 use bytes::Bytes;
@@ -194,7 +194,7 @@ impl LuaEnv {
         self.interrupt_flag.store(true, Ordering::SeqCst);
 
         // Map Lua return values back to the internal Value type
-        Value::from_lua(res?, &self.lua)
+        Value::from_lua(res?)
     }
 
     /// Retrieve compiled functions from cache,

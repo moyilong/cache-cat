@@ -1,4 +1,4 @@
-use crate::config::config::Config;
+use crate::cfg::config::Config;
 use crate::error::Result;
 use crate::node::parsed_config::ParsedConfig;
 use crate::node::raft_node::RaftNode;

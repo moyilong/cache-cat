@@ -1,4 +1,4 @@
-use crate::config::config::{RaftConfig, RedisConfig, TlsConfig};
+use crate::cfg::config::{RaftConfig, RedisConfig, TlsConfig};
 
 #[inline]
 pub fn default_raft_config() -> RaftConfig {

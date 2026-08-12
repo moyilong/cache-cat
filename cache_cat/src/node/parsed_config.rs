@@ -1,4 +1,4 @@
-use crate::config::config::Config;
+use crate::cfg::config::Config;
 use crate::error::Result;
 use crate::raft::types::endpoint::Endpoint;
 use crate::raft::types::raft_types::NodeId;

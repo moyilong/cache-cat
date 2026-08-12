@@ -5,7 +5,7 @@ use crate::protocol::list::lset::LSetReq;
 use crate::protocol::list::ltrim::LTrimReq;
 use crate::protocol::list::rpop::RPopReq;
 use crate::protocol::list::rpush::RPushReq;
-use crate::raft::types::core::mocha::mocha::{MyCache, Update};
+use crate::raft::types::core::mocha::core::{MyCache, Update};
 use crate::raft::types::core::response_value::Value;
 
 impl MyCache {
