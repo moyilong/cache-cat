@@ -65,7 +65,10 @@ impl SortedSet {
         if req.ch { changed } else { added }
     }
 
-    pub fn zrange(&self, start: i64, stop: i64, with_scores: bool) -> Vec<Bytes> {
+    /// Return the members (with scores) in the given rank range.
+    /// The protocol layer decides how to encode scores (RESP2 bulk strings
+    /// vs RESP3 doubles), so scores are returned as raw f64 here.
+    pub fn zrange(&self, start: i64, stop: i64) -> Vec<(Bytes, f64)> {
         let len = self.hash.len() as i64;
         if len == 0 {
             return vec![];
@@ -84,23 +87,14 @@ impl SortedSet {
             return vec![];
         }
         let count = (stop_idx - start_idx + 1) as usize;
-        // 2. Pre allocate space to improve performance
-        // If scores are included, the space doubles
-        let result_capacity = if with_scores { count * 2 } else { count };
-        let mut result = Vec::with_capacity(result_capacity);
+        let mut result = Vec::with_capacity(count);
 
-        // 3. Iterate BTreeMap to extract data
+        // 2. Iterate BTreeMap to extract data
         // The order of the tree is already sorted by (Score, Member)
         let range_iter = self.tree.keys().skip(start_idx as usize).take(count);
 
         for (score, member) in range_iter {
-            // Insert member
-            result.push(member.clone());
-
-            // If scores are required, convert f64 to string bytes
-            if with_scores {
-                result.push(score.0.to_string().into())
-            }
+            result.push((member.clone(), score.0));
         }
         result
     }
@@ -136,9 +130,8 @@ impl SortedSet {
         &self,
         min: f64,
         max: f64,
-        with_scores: bool,
         limit: Option<(usize, usize)>,
-    ) -> Vec<Bytes> {
+    ) -> Vec<(Bytes, f64)> {
         if self.tree.is_empty() {
             return vec![];
         }
@@ -168,10 +161,7 @@ impl SortedSet {
                 break;
             }
 
-            result.push(member.clone());
-            if with_scores {
-                result.push(score.0.to_string().into())
-            }
+            result.push((member.clone(), score.0));
             taken += 1;
         }
 

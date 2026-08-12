@@ -68,7 +68,7 @@ impl Command for PublishCommand {
     ) -> Result<Value, CacheCatError> {
         let params = PublishParams::parse(items)?;
         // 直接传入原始消息，让 publish_message 封装
-        server
+        let receivers = server
             .broadcast
             .publish(params.channel.clone(), params.message.clone())
             .await;
@@ -81,6 +81,8 @@ impl Command for PublishCommand {
             _ = s.app.leader_rpc_call::<PublishReq, ()>(11, req).await;
         });
 
-        Ok(Value::SimpleString(String::from("QUEUED")))
+        // Integer reply: the number of clients that received the message,
+        // exactly like Redis.
+        Ok(receivers)
     }
 }

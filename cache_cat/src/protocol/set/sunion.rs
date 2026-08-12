@@ -102,6 +102,7 @@ impl MultiReadCommand for SUnionParams {
             .map(|v| Value::BulkString(Some(v)))
             .collect();
 
-        Value::Array(Some(results))
+        // Set reply (RESP2 *N, RESP3 ~N).
+        Value::Set(results)
     }
 }

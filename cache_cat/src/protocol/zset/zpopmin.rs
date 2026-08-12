@@ -112,23 +112,30 @@ impl ComputeCommand for ZPopMinReq {
     ) -> (MochaOperation<MyValue>, Value) {
         match &entry.value.data {
             ValueObject::ZSet(zset) => {
-                let values = zset.lock().zpop_min(self.count);
-                let values = values
-                    .into_iter()
-                    .flat_map(|(value, score)| {
-                        [
-                            Value::BulkString(Some(value)),
-                            Value::SimpleString(score.to_string()),
-                        ]
-                    })
-                    .collect();
+                let popped = zset.lock().zpop_min(self.count);
+
+                // Mirror Redis genericZpopCommand:
+                // - without COUNT: flat [member, score] array in both
+                //   protocols (score is a double reply);
+                // - with COUNT: RESP2 flat [m1, s1, ...] array, RESP3 array
+                //   of [member, double] pairs.
+                let response = match self.count {
+                    None => match popped.into_iter().next() {
+                        Some((member, score)) => Value::Array(Some(vec![
+                            Value::BulkString(Some(member)),
+                            Value::Double(score),
+                        ])),
+                        None => Value::Array(Some(Vec::new())),
+                    },
+                    Some(_) => Value::MemberScores(popped),
+                };
 
                 (
                     MochaOperation::Insert {
                         value: entry.value.clone(),
                         expire: entry.get_expire_policy(),
                     },
-                    Value::Array(Some(values)),
+                    response,
                 )
             }
 
@@ -141,6 +148,7 @@ impl ComputeCommand for ZPopMinReq {
 
     #[inline]
     fn init(self) -> (MochaOperation<MyValue>, Value) {
-        (MochaOperation::Abort, Value::Array(None))
+        // Missing key: empty array reply, like Redis shared.emptyarray.
+        (MochaOperation::Abort, Value::Array(Some(Vec::new())))
     }
 }

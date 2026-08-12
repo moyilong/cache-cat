@@ -38,6 +38,11 @@ impl RespCodec {
     pub const fn switch_resp3(&mut self) {
         self.proto_version = 3;
     }
+
+    /// The RESP protocol version currently negotiated on this connection.
+    pub const fn proto_version(&self) -> u8 {
+        self.proto_version
+    }
 }
 
 impl Default for RespCodec {

@@ -51,12 +51,19 @@ impl ReadCommand for ZRangeByScoreParams {
             Some(v) => match v.value.data {
                 ZSet(list) => {
                     let zset = list.lock();
-                    let res = zset.zrangebyscore(self.min, self.max, self.with_scores, self.limit);
-                    let mut vec = Vec::with_capacity(res.len());
-                    for v in res {
-                        vec.push(Value::BulkString(Some(v)));
+                    let res = zset.zrangebyscore(self.min, self.max, self.limit);
+
+                    if self.with_scores {
+                        // WITHSCORES: RESP2 flat [m1, s1, ...] with bulk-string
+                        // scores; RESP3 array of [member, double] pairs.
+                        Value::MemberScores(res)
+                    } else {
+                        let mut vec = Vec::with_capacity(res.len());
+                        for (member, _) in res {
+                            vec.push(Value::BulkString(Some(member)));
+                        }
+                        Value::Array(Some(vec))
                     }
-                    Value::Array(Some(vec))
                 }
                 _ => CacheCatError::from(ProtocolError::WrongType).into(),
             },

@@ -215,8 +215,8 @@ impl SPopReq {
             // SPOP key
             None => Value::BulkString(None),
 
-            // SPOP key count
-            Some(_) => Value::Array(Some(Vec::new())),
+            // SPOP key count: empty set reply, like Redis shared.emptyset.
+            Some(_) => Value::Set(Vec::new()),
         }
     }
 
@@ -230,12 +230,14 @@ impl SPopReq {
                  */
                 Value::BulkString(members.into_iter().next())
             }
-            Some(_) => Value::Array(Some(
+            // Set reply for the count form (RESP2 *N, RESP3 ~N),
+            // matching Redis addReplySetLen in spopWithCountCommand.
+            Some(_) => Value::Set(
                 members
                     .into_iter()
                     .map(|member| Value::BulkString(Some(member)))
                     .collect(),
-            )),
+            ),
         }
     }
 }
@@ -265,7 +267,7 @@ impl ComputeCommand for SPopReq {
                 if self.count == Some(0) {
                     return (
                         MochaOperation::Abort,
-                        Value::Array(Some(Vec::new())),
+                        Value::Set(Vec::new()),
                     );
                 }
 

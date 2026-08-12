@@ -128,7 +128,14 @@ pub fn do_request(
                 };
                 my_cache
                     .lua_env
-                    .exec_lua(my_cache, &param.script, &param.keys, &param.args, update)
+                    .exec_lua(
+                        my_cache,
+                        &param.script,
+                        &param.keys,
+                        &param.args,
+                        update,
+                        param.proto,
+                    )
                     .unwrap_or_else(|err| err.into())
             }
             RedisOperation::RedisExec(param) => {

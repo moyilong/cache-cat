@@ -353,7 +353,7 @@ impl CommandFactory {
         factory.register("ZSCORE", ZScoreCommand);
         factory.register("ZRANK", ZRankCommand);
         factory.register("ZPOPMIN", ZPopMinCommand);
-        factory.register("ZREVRank", ZRevRankCommand);
+        factory.register("ZREVRANK", ZRevRankCommand);
         factory.register("ZINCRBY", ZIncrByCommand);
         // Bitmap commands
         factory.register("SETBIT", SetBitCommand);
@@ -408,6 +408,17 @@ impl CommandFactory {
         }
     }
 
+    /// Commands that are always allowed while a client is in subscribe mode.
+    const SUBSCRIBE_MODE_COMMANDS: [&'static str; 7] = [
+        "SUBSCRIBE",
+        "UNSUBSCRIBE",
+        "PSUBSCRIBE",
+        "PUNSUBSCRIBE",
+        "PING",
+        "QUIT",
+        "RESET",
+    ];
+
     /// Handle a command in blocking context (checking if it's allowed)
     async fn handle_command_in_blocking_context(
         &self,
@@ -416,6 +427,28 @@ impl CommandFactory {
         server: &RedisServer,
         block_cmd: &dyn BlockCommand,
     ) -> Result<(), CacheCatError> {
+        // RESP3 semantics: a subscribed client may issue *any* command, not
+        // just the subscribe-family ones. RESP2 clients stay restricted.
+        if client.framed.codec().proto_version() == 3
+            && !Self::SUBSCRIBE_MODE_COMMANDS.contains(&parsed.name.as_str())
+        {
+            if let Some(cmd) = self.commands.get(&parsed.name) {
+                let resp = match cmd.execute(client, &parsed.items, server).await {
+                    Ok(v) => v,
+                    Err(e) => {
+                        warn!("Command '{}' error: {}", parsed.name, e);
+                        Value::from(e)
+                    }
+                };
+                client.framed.send(resp).await?;
+                return Ok(());
+            }
+
+            let resp = Value::from(ProtocolError::UnknownCommand(parsed.name));
+            client.framed.send(resp).await?;
+            return Ok(());
+        }
+
         let resp = block_cmd
             .execute_during_block(client, &parsed, server)
             .await?;

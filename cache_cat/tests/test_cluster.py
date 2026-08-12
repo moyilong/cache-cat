@@ -201,4 +201,3 @@ print(r.get("test28"))
 r.zadd("my_zset", {"a": 1, "b": 2, "c": 3})
 print(r.zrevrank("my_zset", "a"))
 
-r.zincrby()

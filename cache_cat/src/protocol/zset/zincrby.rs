@@ -167,7 +167,8 @@ impl ComputeCommand for ZIncrByReq {
                         value: entry.value.clone(),
                         expire: entry.get_expire_policy(),
                     },
-                    Value::BulkString(Some(format_score(new_score).into())),
+                    // Double reply: RESP2 bulk string, RESP3 double.
+                    Value::Double(new_score),
                 )
             }
 
@@ -201,20 +202,8 @@ impl ComputeCommand for ZIncrByReq {
                 value: MyValue::new(ValueObject::ZSet(Arc::new(Mutex::new(zset)))),
                 expire: ExpirePolicy::Persistent,
             },
-            Value::BulkString(Some(format_score(new_score).into())),
+            // Double reply: RESP2 bulk string, RESP3 double.
+            Value::Double(new_score),
         )
     }
-}
-
-/// Convert a sorted-set score to a Redis-style string representation.
-///
-/// Rust's f64::to_string() already handles most ordinary values nicely:
-///
-/// 1.0   -> "1"
-/// 1.5   -> "1.5"
-/// inf   -> "inf"
-/// -inf  -> "-inf"
-#[inline]
-fn format_score(score: f64) -> String {
-    score.to_string()
 }

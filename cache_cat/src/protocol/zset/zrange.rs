@@ -63,24 +63,16 @@ impl ReadCommand for ZRangeParams {
             None => Value::Array(Some(vec![])), // 空集合返回空数组
             Some(v) => match v.value.data {
                 ZSet(list) => {
-                    let res = list.lock().zrange(self.start, self.stop, self.with_scores);
+                    let res = list.lock().zrange(self.start, self.stop);
 
                     if self.with_scores {
-                        let mut values = Vec::with_capacity(res.len());
-
-                        let mut iter = res.into_iter();
-
-                        while let Some(member) = iter.next() {
-                            values.push(Value::BulkString(Some(member)));
-                            if let Some(score) = iter.next() {
-                                values.push(Value::BulkString(Some(score)));
-                            }
-                        }
-                        Value::Array(Some(values))
+                        // WITHSCORES: RESP2 flat [m1, s1, ...] with bulk-string
+                        // scores; RESP3 array of [member, double] pairs.
+                        Value::MemberScores(res)
                     } else {
                         // 只有成员，返回普通数组
                         let mut vec = Vec::with_capacity(res.len());
-                        for member in res {
+                        for (member, _) in res {
                             vec.push(Value::BulkString(Some(member)));
                         }
                         Value::Array(Some(vec))

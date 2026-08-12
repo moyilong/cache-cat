@@ -8,7 +8,10 @@ use bytes::Bytes;
 /// Parsed HELLO arguments
 #[derive(Debug)]
 pub struct HelloParam {
-    pub proto_version: u8,
+    /// Requested protocol version. `None` when HELLO is called without a
+    /// protover argument: in that case (like Redis) the connection keeps
+    /// its current protocol and the command just reports the context.
+    pub proto_version: Option<u8>,
     pub username: Option<String>,
     pub password: Option<String>,
     pub client_name: Option<String>,
@@ -27,7 +30,7 @@ impl HelloParam {
             return Err(ProtocolError::WrongArgCount("HELLO"));
         }
 
-        let mut proto_version: u8 = 2;
+        let mut proto_version: Option<u8> = None;
         let mut username = None;
         let mut password = None;
         let mut client_name = None;
@@ -37,18 +40,22 @@ impl HelloParam {
         // Parse optional protocol version
         if idx < items.len() {
             let proto_val = &items[idx];
-            proto_version = match proto_val {
+            let requested = match proto_val {
                 Value::Integer(v) => {
                     if *v < 0 || *v > 255 {
-                        return Err(ProtocolError::InvalidArgument(
-                            "protocol version out of range",
+                        return Err(ProtocolError::Custom(
+                            "NOPROTO unsupported protocol version",
                         ));
                     }
                     *v as u8
                 }
                 Value::BulkString(Some(data)) => String::from_utf8_lossy(data)
                     .parse::<u8>()
-                    .map_err(|_| ProtocolError::InvalidArgument("invalid protocol version"))?,
+                    .map_err(|_| {
+                        ProtocolError::Custom(
+                            "ERR Protocol version is not an integer or out of range",
+                        )
+                    })?,
                 Value::BulkString(None) => {
                     return Err(ProtocolError::InvalidArgument(
                         "protocol version cannot be null",
@@ -62,12 +69,13 @@ impl HelloParam {
             };
 
             // Validate protocol version
-            if proto_version != 2 && proto_version != 3 {
+            if requested != 2 && requested != 3 {
                 return Err(ProtocolError::Custom(
                     "NOPROTO unsupported protocol version",
                 ));
             }
 
+            proto_version = Some(requested);
             idx += 1;
         }
 
@@ -214,65 +222,35 @@ impl Command for HelloCommand {
             client.name = name;
         }
 
-        // Update client protocol version
-        if params.proto_version == 2 {
-            client.framed.codec_mut().switch_resp2();
-        } else {
-            client.framed.codec_mut().switch_resp3();
+        // Switch protocol only when a version was explicitly requested;
+        // a bare HELLO just reports the current connection context.
+        match params.proto_version {
+            Some(2) => client.framed.codec_mut().switch_resp2(),
+            Some(3) => client.framed.codec_mut().switch_resp3(),
+            _ => {}
         }
 
-        // Build response data
-        let mut response_data = Vec::new();
+        let current_proto = client.framed.codec().proto_version();
 
-        // Server info
-        response_data.push((
-            "server".to_string(),
-            Value::BulkString(Some(Bytes::from_static(b"redis"))),
-        ));
-        response_data.push((
-            "version".to_string(),
-            Value::BulkString(Some(Bytes::from_static(
-                env!("CARGO_PKG_VERSION").as_bytes(),
-            ))),
-        ));
+        // Build the response: a map reply, exactly like Redis.
+        // (The encoder emits %7 for RESP3 and a flat *14 array for RESP2.)
+        let bulk = |s: &'static [u8]| Value::BulkString(Some(Bytes::from_static(s)));
 
-        // Protocol version
-        response_data.push((
-            "proto".to_string(),
-            Value::Integer(params.proto_version as i64),
-        ));
+        let map_pairs = vec![
+            (bulk(b"server"), bulk(b"redis")),
+            (
+                bulk(b"version"),
+                Value::BulkString(Some(Bytes::from_static(
+                    env!("CARGO_PKG_VERSION").as_bytes(),
+                ))),
+            ),
+            (bulk(b"proto"), Value::Integer(current_proto as i64)),
+            (bulk(b"id"), Value::Integer(client.id as i64)),
+            (bulk(b"mode"), bulk(b"standalone")),
+            (bulk(b"role"), bulk(b"master")),
+            (bulk(b"modules"), Value::Array(Some(Vec::new()))),
+        ];
 
-        // Connection ID
-        response_data.push(("id".to_string(), Value::Integer(client.id as i64)));
-
-        // Mode
-        response_data.push((
-            "mode".to_string(),
-            Value::BulkString(Some(Bytes::from_static(b"standalone"))),
-        ));
-
-        // Role
-        response_data.push((
-            "role".to_string(),
-            Value::BulkString(Some(Bytes::from_static(b"master"))),
-        ));
-
-        // Build the response in appropriate format
-        if params.proto_version == 3 {
-            // RESP3 map format
-            let mut map_pairs = Vec::new();
-            for (key, value) in response_data {
-                map_pairs.push((Value::BulkString(Some(key.into())), value));
-            }
-            Ok(Value::Map(map_pairs))
-        } else {
-            // RESP2 format - flatten to array of key-value pairs
-            let mut arr = Vec::new();
-            for (key, value) in response_data {
-                arr.push(Value::BulkString(Some(key.into())));
-                arr.push(value);
-            }
-            Ok(Value::Array(Some(arr)))
-        }
+        Ok(Value::Map(map_pairs))
     }
 }

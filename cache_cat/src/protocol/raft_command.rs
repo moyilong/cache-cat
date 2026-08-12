@@ -202,7 +202,7 @@ impl RaftCommandFactory {
         factory.register("ZRANK", ZRankCommand);
         factory.register("ZPOPMIN", ZPopMinCommand);
         factory.register("UNLINK", UnlinkCommand);
-        factory.register("ZREVRank", ZRevRankCommand);
+        factory.register("ZREVRANK", ZRevRankCommand);
         factory.register("ZINCRBY", ZIncrByCommand);
         factory
     }

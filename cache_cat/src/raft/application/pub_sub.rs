@@ -44,6 +44,26 @@ impl PubSub {
         state.sender.subscribe()
     }
 
+    /// Build a pub/sub confirmation / notification frame.
+    ///
+    /// These are Push frames: encoded as `>N` for RESP3 clients and as plain
+    /// `*N` arrays for RESP2 clients, exactly like Redis. The message kind is
+    /// a bulk string, matching the wire format of real Redis.
+    fn push_frame(kind: &'static str, target: Option<Bytes>, count: i64) -> Value {
+        Value::Push(vec![
+            Value::BulkString(Some(Bytes::from_static(kind.as_bytes()))),
+            Value::BulkString(target),
+            Value::Integer(count),
+        ])
+    }
+
+    /// Total number of channels + patterns the client is subscribed to.
+    /// Redis reports this as the third element of every
+    /// (p)subscribe / (p)unsubscribe confirmation.
+    fn client_sub_total(state: &ClientState) -> i64 {
+        (state.subscribed_channels.len() + state.subscribed_patterns.len()) as i64
+    }
+
     /// Subscribe to multiple precise channels
     pub async fn subscribe(
         &self,
@@ -52,101 +72,78 @@ impl PubSub {
     ) -> (Value, watch::Receiver<Option<Value>>) {
         let rx = self.get_or_create_client(client_id).await;
 
-        let mut responses = Vec::new();
-        for channel in &channels {
-            let resp = self.subscribe_single(channel.clone(), client_id).await;
-            if let Value::Array(Some(mut elements)) = resp {
-                responses.append(&mut elements);
+        // Register the subscriptions
+        {
+            let mut subs = self.subs.write().await;
+            for channel in &channels {
+                subs.entry(channel.clone()).or_default().insert(client_id);
             }
         }
 
-        // Record that the client subscribed to these channels
+        // One confirmation frame per channel, exactly like Redis. The count
+        // is the client's total subscription count after each subscription.
+        let mut frames = Vec::with_capacity(channels.len());
         {
             let mut clients = self.clients.write().await;
             if let Some(state) = clients.get_mut(&client_id) {
-                for channel in &channels {
+                for channel in channels {
                     state.subscribed_channels.insert(channel.clone());
+                    frames.push(Self::push_frame(
+                        "subscribe",
+                        Some(channel),
+                        Self::client_sub_total(state),
+                    ));
                 }
             }
         }
 
-        let aggregated_resp = Value::Array(Some(responses));
-        (aggregated_resp, rx)
-    }
-
-    /// Subscribe to a single precise channel
-    async fn subscribe_single(&self, channel: Bytes, client_id: u64) -> Value {
-        let mut subs = self.subs.write().await;
-        subs.entry(channel.clone()).or_default().insert(client_id);
-
-        let count = subs.get(&channel).map(|s| s.len()).unwrap_or(0) as i64;
-        Value::Array(Some(vec![
-            Value::SimpleString("subscribe".to_string()),
-            Value::BulkString(Some(channel)),
-            Value::Integer(count),
-        ]))
+        (Value::Batch(frames), rx)
     }
 
     /// Unsubscribe from multiple precise channels
     pub async fn unsubscribe(&self, channels: Vec<Bytes>, client_id: u64) -> Value {
-        let mut responses = Vec::new();
-        for channel in &channels {
-            let resp = self.unsubscribe_single(channel.clone(), client_id).await;
-            if let Value::Array(Some(mut elements)) = resp {
-                responses.append(&mut elements);
+        // Remove the client from each channel's subscriber set
+        {
+            let mut subs = self.subs.write().await;
+            for channel in &channels {
+                if let Some(set) = subs.get_mut(channel) {
+                    set.remove(&client_id);
+                    if set.is_empty() {
+                        subs.remove(channel);
+                    }
+                }
             }
         }
 
-        // Remove the records of these channels from the client state and
-        // clean them up when there are no subscriptions
+        // One confirmation frame per channel, exactly like Redis: the count
+        // is the client's remaining subscription count after each removal.
+        let mut frames = Vec::with_capacity(channels.len());
         {
             let mut clients = self.clients.write().await;
             if let Some(state) = clients.get_mut(&client_id) {
-                for channel in &channels {
-                    state.subscribed_channels.remove(channel);
+                for channel in channels {
+                    state.subscribed_channels.remove(&channel);
+                    frames.push(Self::push_frame(
+                        "unsubscribe",
+                        Some(channel),
+                        Self::client_sub_total(state),
+                    ));
                 }
                 // If the client no longer has any subscriptions,
                 // send a close signal and clear it
                 Self::cleanup_client_if_empty(&mut clients, client_id);
-            }
-        }
-
-        Value::Array(Some(responses))
-    }
-
-    /// Unsubscribe from a single precise channel
-    async fn unsubscribe_single(&self, channel: Bytes, client_id: u64) -> Value {
-        let mut subs = self.subs.write().await;
-        match subs.get_mut(&channel) {
-            Some(set) => {
-                let count = set.len() as i64;
-                let existed = set.remove(&client_id);
-                if set.is_empty() {
-                    subs.remove(&channel);
+            } else {
+                for channel in channels {
+                    frames.push(Self::push_frame("unsubscribe", Some(channel), 0));
                 }
-
-                // Fix: If the client actually subscribed to this channel,
-                // return the count before removal.
-                // If there is no subscription (which should not occur,
-                // but should be protected), return 0.
-                Value::Array(Some(vec![
-                    Value::SimpleString("unsubscribe".to_string()),
-                    Value::BulkString(Some(channel)),
-                    Value::Integer(if existed { count } else { 0 }),
-                ]))
             }
-            None => Value::Array(Some(vec![
-                Value::SimpleString("unsubscribe".to_string()),
-                Value::BulkString(Some(channel)),
-                Value::Integer(0),
-            ])),
         }
+
+        Value::Batch(frames)
     }
 
     /// Unsubscribe all precise channels of the client
     pub async fn unsubscribe_all_channels(&self, client_id: u64) -> Value {
-        let mut responses = Vec::new();
-
         // Get all channels subscribed to by the client
         let channels = {
             let clients = self.clients.read().await;
@@ -163,34 +160,49 @@ impl PubSub {
         };
 
         // Unsubscribe from all channels
-        let mut subs = self.subs.write().await;
-        for channel in &channels {
-            if let Some(set) = subs.get_mut(channel) {
-                let count = set.len() as i64;
-                set.remove(&client_id);
-                if set.is_empty() {
-                    subs.remove(channel);
+        {
+            let mut subs = self.subs.write().await;
+            for channel in &channels {
+                if let Some(set) = subs.get_mut(channel) {
+                    set.remove(&client_id);
+                    if set.is_empty() {
+                        subs.remove(channel);
+                    }
                 }
-                responses.push(Value::Array(Some(vec![
-                    Value::SimpleString("unsubscribe".to_string()),
-                    Value::BulkString(Some(channel.clone())),
-                    Value::Integer(count),
-                ])));
             }
         }
-        drop(subs);
 
-        // Clear the client status and send a close signal if there are no subscriptions
+        // One confirmation frame per channel; when the client was not
+        // subscribed to anything Redis still sends one frame with a null
+        // channel name.
+        let mut frames = Vec::with_capacity(channels.len().max(1));
         {
             let mut clients = self.clients.write().await;
             if let Some(state) = clients.get_mut(&client_id) {
-                state.subscribed_channels.clear();
+                for channel in channels {
+                    state.subscribed_channels.remove(&channel);
+                    frames.push(Self::push_frame(
+                        "unsubscribe",
+                        Some(channel),
+                        Self::client_sub_total(state),
+                    ));
+                }
+                if frames.is_empty() {
+                    frames.push(Self::push_frame(
+                        "unsubscribe",
+                        None,
+                        Self::client_sub_total(state),
+                    ));
+                }
                 // Only clear when the mode is also empty, otherwise keep the mode subscription
                 Self::cleanup_client_if_empty(&mut clients, client_id);
             }
         }
+        if frames.is_empty() {
+            frames.push(Self::push_frame("unsubscribe", None, 0));
+        }
 
-        Value::Array(Some(responses))
+        Value::Batch(frames)
     }
 
     /// Subscribe to multiple modes
@@ -201,43 +213,31 @@ impl PubSub {
     ) -> (Value, watch::Receiver<Option<Value>>) {
         let rx = self.get_or_create_client(client_id).await;
 
-        let mut responses = Vec::new();
-        for pattern in &patterns {
-            let resp = self.psubscribe_single(pattern.clone(), client_id).await;
-            // Fix: Use append to expand array elements instead of pushing the entire response
-            if let Value::Array(Some(mut elements)) = resp {
-                responses.append(&mut elements);
+        // Register the pattern subscriptions
+        {
+            let mut pats = self.patterns.write().await;
+            for pattern in &patterns {
+                pats.entry(pattern.clone()).or_default().insert(client_id);
             }
         }
 
-        // Record that the client subscribed to these modes
+        // One confirmation frame per pattern, exactly like Redis.
+        let mut frames = Vec::with_capacity(patterns.len());
         {
             let mut clients = self.clients.write().await;
             if let Some(state) = clients.get_mut(&client_id) {
-                for pattern in &patterns {
+                for pattern in patterns {
                     state.subscribed_patterns.insert(pattern.clone());
+                    frames.push(Self::push_frame(
+                        "psubscribe",
+                        Some(pattern),
+                        Self::client_sub_total(state),
+                    ));
                 }
             }
         }
 
-        let aggregated_resp = Value::Array(Some(responses));
-        (aggregated_resp, rx)
-    }
-
-    /// Subscription single mode
-    async fn psubscribe_single(&self, pattern: Bytes, client_id: u64) -> Value {
-        let mut patterns = self.patterns.write().await;
-        patterns
-            .entry(pattern.clone())
-            .or_default()
-            .insert(client_id);
-
-        let count = patterns.get(&pattern).map(|s| s.len()).unwrap_or(0) as i64;
-        Value::Array(Some(vec![
-            Value::SimpleString("psubscribe".to_string()),
-            Value::BulkString(Some(pattern)),
-            Value::Integer(count),
-        ]))
+        (Value::Batch(frames), rx)
     }
 
     pub async fn publish(&self, channel: Bytes, message_content: Bytes) -> Value {
@@ -249,12 +249,13 @@ impl PubSub {
             subs.get(&channel).cloned().unwrap_or_default()
         };
 
-        // Build precise subscription messages
-        let exact_msg = Value::Array(Some(vec![
-            Value::SimpleString("message".to_string()),
+        // Build precise subscription messages (Push frames:
+        // RESP3 `>3`, RESP2 plain `*3` array, like Redis)
+        let exact_msg = Value::Push(vec![
+            Value::BulkString(Some(Bytes::from_static(b"message"))),
             Value::BulkString(Some(channel.clone())),
             Value::BulkString(Some(message_content.clone())),
-        ]));
+        ]);
 
         // Collect all matching patterns and their subscribers
         let mut pattern_targets: Vec<(Bytes, HashSet<u64>)> = Vec::new();
@@ -280,12 +281,12 @@ impl PubSub {
 
         // Send to pattern subscribers (each pattern uses a separate pmessage format)
         for (pattern, set) in &pattern_targets {
-            let pmessage = Value::Array(Some(vec![
-                Value::SimpleString("pmessage".to_string()),
+            let pmessage = Value::Push(vec![
+                Value::BulkString(Some(Bytes::from_static(b"pmessage"))),
                 Value::BulkString(Some(pattern.clone())),
                 Value::BulkString(Some(channel.to_vec().into())),
                 Value::BulkString(Some(message_content.clone())),
-            ]));
+            ]);
 
             for client_id in set {
                 if let Some(state) = clients.get(client_id)
@@ -329,59 +330,45 @@ impl PubSub {
 
     /// Unsubscribe from multiple modes (external calls)
     pub async fn punsubscribe(&self, patterns: Vec<Bytes>, client_id: u64) -> Value {
-        let mut responses = Vec::new();
-        for pattern in &patterns {
-            let resp = self.punsubscribe_single(pattern.clone(), client_id).await;
-            if let Value::Array(Some(mut elements)) = resp {
-                responses.append(&mut elements);
+        // Remove the client from each pattern's subscriber set
+        {
+            let mut pats = self.patterns.write().await;
+            for pattern in &patterns {
+                if let Some(set) = pats.get_mut(pattern) {
+                    set.remove(&client_id);
+                    if set.is_empty() {
+                        pats.remove(pattern);
+                    }
+                }
             }
         }
 
-        // Remove records of these patterns from the client state
-        // and clean them up when there are no subscriptions
+        // One confirmation frame per pattern, exactly like Redis.
+        let mut frames = Vec::with_capacity(patterns.len());
         {
             let mut clients = self.clients.write().await;
             if let Some(state) = clients.get_mut(&client_id) {
-                for pattern in &patterns {
-                    state.subscribed_patterns.remove(pattern);
+                for pattern in patterns {
+                    state.subscribed_patterns.remove(&pattern);
+                    frames.push(Self::push_frame(
+                        "punsubscribe",
+                        Some(pattern),
+                        Self::client_sub_total(state),
+                    ));
                 }
                 Self::cleanup_client_if_empty(&mut clients, client_id);
-            }
-        }
-
-        Value::Array(Some(responses))
-    }
-
-    /// Unsubscribe individual mode (internal assistance)
-    async fn punsubscribe_single(&self, pattern: Bytes, client_id: u64) -> Value {
-        let mut patterns = self.patterns.write().await;
-        match patterns.get_mut(&pattern) {
-            Some(set) => {
-                let count = set.len() as i64;
-                let existed = set.remove(&client_id);
-                if set.is_empty() {
-                    patterns.remove(&pattern);
+            } else {
+                for pattern in patterns {
+                    frames.push(Self::push_frame("punsubscribe", Some(pattern), 0));
                 }
-                // If the subscription is actually cancelled, return the count before removal;
-                // Otherwise (not subscribed to this mode), return 0
-                Value::Array(Some(vec![
-                    Value::SimpleString("punsubscribe".to_string()),
-                    Value::BulkString(Some(pattern)),
-                    Value::Integer(if existed { count } else { 0 }),
-                ]))
             }
-            None => Value::Array(Some(vec![
-                Value::SimpleString("punsubscribe".to_string()),
-                Value::BulkString(Some(pattern)),
-                Value::Integer(0),
-            ])),
         }
+
+        Value::Batch(frames)
     }
 
     /// Unsubscribe all modes of this client (external calls)
     pub async fn punsubscribe_all_patterns(&self, client_id: u64) -> Value {
-        let mut responses = Vec::new();
-
         // Get all modes subscribed by the client
         let patterns = {
             let clients = self.clients.read().await;
@@ -398,33 +385,47 @@ impl PubSub {
         };
 
         // Unsubscribe from all modes
-        let mut pats = self.patterns.write().await;
-        for pattern in &patterns {
-            if let Some(set) = pats.get_mut(pattern) {
-                let count = set.len() as i64;
-                set.remove(&client_id);
-                if set.is_empty() {
-                    pats.remove(pattern);
+        {
+            let mut pats = self.patterns.write().await;
+            for pattern in &patterns {
+                if let Some(set) = pats.get_mut(pattern) {
+                    set.remove(&client_id);
+                    if set.is_empty() {
+                        pats.remove(pattern);
+                    }
                 }
-                responses.push(Value::Array(Some(vec![
-                    Value::SimpleString("punsubscribe".to_string()),
-                    Value::BulkString(Some(pattern.clone())),
-                    Value::Integer(count),
-                ])));
             }
         }
-        drop(pats);
 
-        // Clear the client status and send a close signal if there are no subscriptions
+        // One confirmation frame per pattern; with no subscriptions Redis
+        // still sends one frame with a null pattern.
+        let mut frames = Vec::with_capacity(patterns.len().max(1));
         {
             let mut clients = self.clients.write().await;
             if let Some(state) = clients.get_mut(&client_id) {
-                state.subscribed_patterns.clear();
+                for pattern in patterns {
+                    state.subscribed_patterns.remove(&pattern);
+                    frames.push(Self::push_frame(
+                        "punsubscribe",
+                        Some(pattern),
+                        Self::client_sub_total(state),
+                    ));
+                }
+                if frames.is_empty() {
+                    frames.push(Self::push_frame(
+                        "punsubscribe",
+                        None,
+                        Self::client_sub_total(state),
+                    ));
+                }
                 Self::cleanup_client_if_empty(&mut clients, client_id);
             }
         }
+        if frames.is_empty() {
+            frames.push(Self::push_frame("punsubscribe", None, 0));
+        }
 
-        Value::Array(Some(responses))
+        Value::Batch(frames)
     }
 
     /// PUBSUB CHANNELS [pattern]

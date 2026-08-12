@@ -37,17 +37,18 @@ impl ReadCommand for SMembersParams {
 
     fn execute(&self, value: Option<EntrySnapshot<MyValue>>) -> Value {
         match value {
-            None => Value::Array(Some(vec![])),
+            // Missing key: empty set reply (RESP2 *0, RESP3 ~0), like Redis.
+            None => Value::Set(Vec::new()),
             Some(v) => match v.value.data {
                 ValueObject::Set(set) => {
                     let guard = set.lock();
 
-                    let array = guard
+                    let members = guard
                         .iter()
                         .map(|v| Value::BulkString(Some(v.clone())))
                         .collect::<Vec<_>>();
 
-                    Value::Array(Some(array))
+                    Value::Set(members)
                 }
                 _ => ProtocolError::WrongType.into(),
             },

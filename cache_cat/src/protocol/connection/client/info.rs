@@ -74,6 +74,11 @@ impl SubCommand for ClientInfoCommand {
 
         map.insert("cmd".to_string(), client.last_cmd.to_string());
 
+        map.insert(
+            "resp".to_string(),
+            client.framed.codec().proto_version().to_string(),
+        );
+
         map.insert("lib_name".to_string(), client.lib_name.to_string());
         map.insert("lib_ver".to_string(), client.lib_ver.to_string());
 

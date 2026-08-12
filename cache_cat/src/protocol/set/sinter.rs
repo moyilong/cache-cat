@@ -115,12 +115,15 @@ impl MultiReadCommand for SInterParams {
             }
         }
 
-        let results = results.map(|res| {
-            res.into_iter()
-                .map(|v| Value::BulkString(Some(v)))
-                .collect()
-        });
+        let members = results
+            .map(|res| {
+                res.into_iter()
+                    .map(|v| Value::BulkString(Some(v)))
+                    .collect()
+            })
+            .unwrap_or_default();
 
-        Value::Array(results)
+        // Set reply (RESP2 *N, RESP3 ~N); empty when nothing intersects.
+        Value::Set(members)
     }
 }

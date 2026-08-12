@@ -83,8 +83,15 @@ impl LuaEnv {
         keys: &[Bytes],
         args: &[Bytes],
         update: &mut Update,
+        proto: u8,
     ) -> Result<Value, ProtocolError> {
         self.interrupt_flag.store(false, Ordering::SeqCst);
+
+        // RESP version used for `redis.call()` results seen *by the script*.
+        // Redis defaults this to 2 and lets scripts opt in to RESP3-shaped
+        // Lua values with `redis.setresp(3)`. This is independent from the
+        // calling client's protocol version (`proto`).
+        let script_resp = Arc::new(std::sync::atomic::AtomicU8::new(2));
 
         // 2. Set hooks
         // HookTriggers::default().every_count(1000) Triggered every 1000 instructions executed
@@ -108,6 +115,7 @@ impl LuaEnv {
         let res = self.lua.scope(|scope| -> mlua::Result<LuaValue> {
             // ---- redis.call ----
             // Errors will be thrown directly upwards, interrupting script execution
+            let call_resp = script_resp.clone();
             let redis_call =
                 scope.create_function_mut(move |_lua_ctx, args: Variadic<String>| {
                     if args.is_empty() {
@@ -135,12 +143,13 @@ impl LuaEnv {
                     if let Value::Error(e) = value {
                         return Err(LuaError::external(e));
                     }
-                    value.into_lua_value(&self.lua)
+                    value.into_lua_value(&self.lua, call_resp.load(Ordering::Relaxed))
                 })?;
 
             // ---- redis.pcall ----
             // Errors will be packaged as {err="..."} and returned to Lua,
             // and the script can continue to execute
+            let pcall_resp = script_resp.clone();
             let redis_pcall =
                 scope.create_function_mut(move |_lua_ctx, args: Variadic<String>| {
                     if args.is_empty() {
@@ -155,9 +164,8 @@ impl LuaEnv {
                     let update = unsafe { &mut *update_ptr };
 
                     match self.raft_command.parse_request(&vec) {
-                        Ok(operation) => {
-                            do_request(cache, operation, update, false).into_lua_value(&self.lua)
-                        }
+                        Ok(operation) => do_request(cache, operation, update, false)
+                            .into_lua_value(&self.lua, pcall_resp.load(Ordering::Relaxed)),
                         Err(e) => {
                             let err_table = self.lua.create_table()?;
                             err_table.set("err", e.to_string())?;
@@ -166,10 +174,49 @@ impl LuaEnv {
                     }
                 })?;
 
+            // ---- redis.setresp ----
+            // Selects the RESP version (2 or 3) used to convert the results
+            // of redis.call/redis.pcall into Lua values, like Redis.
+            let setresp_resp = script_resp.clone();
+            let redis_setresp = scope.create_function(move |_lua_ctx, ver: i64| {
+                if ver != 2 && ver != 3 {
+                    return Err(LuaError::external(
+                        "RESP version must be 2 or 3",
+                    ));
+                }
+                setresp_resp.store(ver as u8, Ordering::Relaxed);
+                Ok(())
+            })?;
+
+            // ---- redis.error_reply / redis.status_reply ----
+            let redis_error_reply = scope.create_function(|lua_ctx, msg: String| {
+                let table = lua_ctx.create_table()?;
+                // Redis prefixes "ERR " when the message has no error code.
+                let msg = if msg.contains(' ')
+                    && msg.split(' ').next().is_some_and(|word| {
+                        !word.is_empty() && word.chars().all(|c| c.is_ascii_uppercase())
+                    }) {
+                    msg
+                } else {
+                    format!("ERR {}", msg)
+                };
+                table.set("err", msg)?;
+                Ok(table)
+            })?;
+
+            let redis_status_reply = scope.create_function(|lua_ctx, msg: String| {
+                let table = lua_ctx.create_table()?;
+                table.set("ok", msg)?;
+                Ok(table)
+            })?;
+
             // ---- Inject global Redis table ----
             let redis_table = self.lua.create_table()?;
             redis_table.set("call", redis_call)?;
             redis_table.set("pcall", redis_pcall)?;
+            redis_table.set("setresp", redis_setresp)?;
+            redis_table.set("error_reply", redis_error_reply)?;
+            redis_table.set("status_reply", redis_status_reply)?;
             self.lua.globals().set("redis", redis_table)?;
 
             // ---- KEYS ----
@@ -193,8 +240,9 @@ impl LuaEnv {
         });
         self.interrupt_flag.store(true, Ordering::SeqCst);
 
-        // Map Lua return values back to the internal Value type
-        Value::from_lua(res?)
+        // Map Lua return values back to the internal Value type, following
+        // the Lua -> RESP conversion rules for the calling client's protocol.
+        Value::from_lua(res?, proto)
     }
 
     /// Retrieve compiled functions from cache,
