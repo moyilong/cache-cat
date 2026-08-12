@@ -193,6 +193,26 @@ impl SortedSet {
 
         removed
     }
+    pub fn zincrby(&mut self, member: Bytes, increment: f64) -> Option<f64> {
+        let old_score = self.hash.get(&member).copied().unwrap_or(0.0);
+        let new_score = old_score + increment;
+
+        // Redis does not allow NaN as a sorted-set score.
+        if new_score.is_nan() {
+            return None;
+        }
+
+        if let Some(old_score) = self.hash.get(&member).copied() {
+            self.tree
+                .remove(&(OrderedFloat(old_score), member.clone()));
+        }
+
+        self.tree
+            .insert((OrderedFloat(new_score), member.clone()), ());
+        self.hash.insert(member, new_score);
+
+        Some(new_score)
+    }
 
     pub fn zscore(&self, member: &Bytes) -> Option<f64> {
         self.hash.get(member).cloned()

@@ -154,6 +154,7 @@ impl fmt::Display for Request {
                 BaseOperation::BitField(req) => write!(f, "BitField: {}", req),
                 BaseOperation::ZPopMin(req) => write!(f, "ZPopMin: {}", req),
                 BaseOperation::Unlink(req) => write!(f, "Unlink: {}", req),
+                BaseOperation::ZIncrBy(req) => write!(f, "ZIncrBy: {}", req),
             },
             Operation::Redis(op) => match op {
                 RedisOperation::RedisSet(req) => write!(f, "RedisSet: {}", req),

@@ -67,6 +67,7 @@ use crate::protocol::string::setex::SetExCommand;
 use crate::protocol::string::setnx::SetNxCommand;
 use crate::protocol::zset::zadd::ZAddCommand;
 use crate::protocol::zset::zcard::ZCardCommand;
+use crate::protocol::zset::zincrby::ZIncrByCommand;
 use crate::protocol::zset::zpopmin::ZPopMinCommand;
 use crate::protocol::zset::zrange::ZRangeCommand;
 use crate::protocol::zset::zrangegetscore::ZRangeByScoreCommand;
@@ -202,6 +203,7 @@ impl RaftCommandFactory {
         factory.register("ZPOPMIN", ZPopMinCommand);
         factory.register("UNLINK", UnlinkCommand);
         factory.register("ZREVRank", ZRevRankCommand);
+        factory.register("ZINCRBY", ZIncrByCommand);
         factory
     }
 

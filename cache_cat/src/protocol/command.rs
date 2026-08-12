@@ -93,11 +93,13 @@ use crate::protocol::transaction::exec::ExecCommand;
 use crate::protocol::transaction::multi::MultiCommand;
 use crate::protocol::zset::zadd::ZAddCommand;
 use crate::protocol::zset::zcard::ZCardCommand;
+use crate::protocol::zset::zincrby::ZIncrByCommand;
 use crate::protocol::zset::zpopmin::ZPopMinCommand;
 use crate::protocol::zset::zrange::ZRangeCommand;
 use crate::protocol::zset::zrangegetscore::ZRangeByScoreCommand;
 use crate::protocol::zset::zrank::ZRankCommand;
 use crate::protocol::zset::zrem::ZRemCommand;
+use crate::protocol::zset::zrevrank::ZRevRankCommand;
 use crate::protocol::zset::zscore::ZScoreCommand;
 use crate::raft::network::connection::Connection;
 use crate::raft::network::redis_server::{RedisServer, RespCodec};
@@ -114,7 +116,6 @@ use tokio::select;
 use tokio::sync::watch;
 use tokio_util::codec::Framed;
 use tracing::{error, warn};
-use crate::protocol::zset::zrevrank::ZRevRankCommand;
 
 #[async_trait]
 pub trait Command: Send + Sync {
@@ -353,6 +354,7 @@ impl CommandFactory {
         factory.register("ZRANK", ZRankCommand);
         factory.register("ZPOPMIN", ZPopMinCommand);
         factory.register("ZREVRank", ZRevRankCommand);
+        factory.register("ZINCRBY", ZIncrByCommand);
         // Bitmap commands
         factory.register("SETBIT", SetBitCommand);
         factory.register("GETBIT", GetBitCommand);
