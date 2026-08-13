@@ -3,12 +3,19 @@ use bytes::Bytes;
 use ordered_float::OrderedFloat;
 use parking_lot::Mutex;
 use serde::{Deserialize, Serialize};
-use std::collections::{BTreeMap, HashMap, HashSet, VecDeque};
+use std::collections::{BTreeSet, HashMap, HashSet, VecDeque};
 use std::sync::Arc;
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct SortedSet {
-    tree: BTreeMap<(OrderedFloat<f64>, Bytes), ()>,
+    /// 按 (score, member) 排序。
+    ///
+    /// Redis Sorted Set 在 score 相同时，按照 member 的字典序排列。
+    tree: BTreeSet<(OrderedFloat<f64>, Bytes)>,
+
+    /// member -> score
+    ///
+    /// 用于 O(1) 查询 member 是否存在以及它当前的 score。
     hash: HashMap<Bytes, f64>,
 }
 
@@ -23,80 +30,116 @@ impl SortedSet {
         let mut changed = 0;
 
         for (member, score) in req.members {
-            let old_score = self.hash.get(&member).cloned();
+            let old_score = self.hash.get(&member).copied();
             let exists = old_score.is_some();
 
-            // 1. Processing NX (new only) / XX (updated only)
+            // NX: 只添加不存在的 member
             if req.nx && exists {
                 continue;
             }
+
+            // XX: 只更新已经存在的 member
             if req.xx && !exists {
                 continue;
             }
 
-            if let Some(old_s) = old_score {
-                // 2. Processing GT / LT
-                if req.gt && score <= old_s {
-                    continue;
-                }
-                if req.lt && score >= old_s {
+            if let Some(old_score) = old_score {
+                // GT: 新 score 必须大于旧 score
+                if req.gt && score <= old_score {
                     continue;
                 }
 
-                // 3. perform updates
-                if old_s != score {
-                    // Remove the old sorting nodes from the tree first
-                    self.tree.remove(&(OrderedFloat(old_s), member.clone()));
-                    // Insert a new sorting node
-                    self.tree.insert((OrderedFloat(score), member.clone()), ());
-                    // Update Hash Table
-                    self.hash.insert(member.clone(), score);
+                // LT: 新 score 必须小于旧 score
+                if req.lt && score >= old_score {
+                    continue;
+                }
+
+                // score 真正发生改变才需要修改 tree/hash
+                if old_score != score {
+                    self.tree
+                        .remove(&(OrderedFloat(old_score), member.clone()));
+
+                    self.tree
+                        .insert((OrderedFloat(score), member.clone()));
+
+                    self.hash.insert(member, score);
+
                     changed += 1;
                 }
             } else {
-                // 4. Execute addition
-                self.tree.insert((OrderedFloat(score), member.clone()), ());
-                self.hash.insert(member.clone(), score);
+                // 新 member
+                self.tree
+                    .insert((OrderedFloat(score), member.clone()));
+
+                self.hash.insert(member, score);
+
                 added += 1;
                 changed += 1;
             }
         }
 
-        if req.ch { changed } else { added }
+        if req.ch {
+            changed
+        } else {
+            added
+        }
     }
 
-    /// Return the members (with scores) in the given rank range.
-    /// The protocol layer decides how to encode scores (RESP2 bulk strings
-    /// vs RESP3 doubles), so scores are returned as raw f64 here.
+    /// 按 rank 返回成员。
+    ///
+    /// start/stop 都是闭区间，并支持 Redis 风格负数索引：
+    ///
+    /// - 0 = 第一个
+    /// - 1 = 第二个
+    /// - -1 = 最后一个
+    /// - -2 = 倒数第二个
     pub fn zrange(&self, start: i64, stop: i64) -> Vec<(Bytes, f64)> {
-        let len = self.hash.len() as i64;
+        let len = self.tree.len() as i64;
+
         if len == 0 {
-            return vec![];
+            return Vec::new();
         }
-        // 1. Handling Redis Negative Index Logic
-        let mut start_idx = if start < 0 { len + start } else { start };
-        let mut stop_idx = if stop < 0 { len + stop } else { stop };
-        // Boundary correction
+
+        let mut start_idx = if start < 0 {
+            len + start
+        } else {
+            start
+        };
+
+        let mut stop_idx = if stop < 0 {
+            len + stop
+        } else {
+            stop
+        };
+
+        // Redis 语义：
+        // start 过小则修正到 0
         if start_idx < 0 {
             start_idx = 0;
         }
+
+        // stop 超出末尾则修正到 len - 1
         if stop_idx >= len {
             stop_idx = len - 1;
         }
-        if start_idx > stop_idx || start_idx >= len {
-            return vec![];
+
+        // stop 仍然 < 0，说明整个范围都在集合之前
+        if stop_idx < 0 {
+            return Vec::new();
         }
+
+        if start_idx >= len || start_idx > stop_idx {
+            return Vec::new();
+        }
+
         let count = (stop_idx - start_idx + 1) as usize;
-        let mut result = Vec::with_capacity(count);
 
-        // 2. Iterate BTreeMap to extract data
-        // The order of the tree is already sorted by (Score, Member)
-        let range_iter = self.tree.keys().skip(start_idx as usize).take(count);
-
-        for (score, member) in range_iter {
-            result.push((member.clone(), score.0));
-        }
-        result
+        self.tree
+            .iter()
+            .skip(start_idx as usize)
+            .take(count)
+            .map(|(score, member)| (member.clone(), score.0))
+            .collect()
     }
 
     #[inline]
@@ -104,28 +147,61 @@ impl SortedSet {
         self.hash.len()
     }
 
-    pub fn zcount(&self, min: f64, max: f64, min_exclusive: bool, max_exclusive: bool) -> i64 {
-        use std::ops::Bound;
-
+    /// 统计 score 在指定范围中的 member 数量。
+    ///
+    /// min_exclusive:
+    /// - false => score >= min
+    /// - true  => score > min
+    ///
+    /// max_exclusive:
+    /// - false => score <= max
+    /// - true  => score < max
+    pub fn zcount(
+        &self,
+        min: f64,
+        max: f64,
+        min_exclusive: bool,
+        max_exclusive: bool,
+    ) -> i64 {
         if self.tree.is_empty() {
             return 0;
         }
 
-        let start = if min_exclusive {
-            Bound::Excluded((OrderedFloat(min), Bytes::from(vec![0xff])))
-        } else {
-            Bound::Included((OrderedFloat(min), Bytes::new()))
-        };
+        if min > max {
+            return 0;
+        }
 
-        let end = if max_exclusive {
-            Bound::Excluded((OrderedFloat(max), Bytes::new()))
-        } else {
-            Bound::Included((OrderedFloat(max), Bytes::from(vec![0xff])))
-        };
+        self.tree
+            .iter()
+            .filter(|(score, _)| {
+                let score = score.0;
 
-        self.tree.range((start, end)).count() as i64
+                let min_ok = if min_exclusive {
+                    score > min
+                } else {
+                    score >= min
+                };
+
+                let max_ok = if max_exclusive {
+                    score < max
+                } else {
+                    score <= max
+                };
+
+                min_ok && max_ok
+            })
+            .count() as i64
     }
 
+    /// ZRANGEBYSCORE
+    ///
+    /// min/max 当前为闭区间：
+    ///
+    ///     min <= score <= max
+    ///
+    /// limit:
+    ///
+    ///     Some((offset, count))
     pub fn zrangebyscore(
         &self,
         min: f64,
@@ -133,120 +209,190 @@ impl SortedSet {
         limit: Option<(usize, usize)>,
     ) -> Vec<(Bytes, f64)> {
         if self.tree.is_empty() {
-            return vec![];
+            return Vec::new();
         }
 
-        let min_score = OrderedFloat(min);
-        let max_score = OrderedFloat(max);
-
-        // Traverse the entire BTreeMap directly and perform score filtering during iterations
-        // This avoids boundary value problems and does not require collection
-        let skip_count = limit.map(|(offset, _)| offset).unwrap_or(0);
-        let take_count = limit.map(|(_, count)| count).unwrap_or(usize::MAX);
-
-        let mut result = Vec::new();
-        let mut skipped = 0;
-        let mut taken = 0;
-
-        for ((score, member), _) in self
-            .tree
-            .range((min_score, Bytes::new())..=(max_score, Bytes::new()))
-        {
-            if skipped < skip_count {
-                skipped += 1;
-                continue;
-            }
-
-            if taken >= take_count {
-                break;
-            }
-
-            result.push((member.clone(), score.0));
-            taken += 1;
+        if min > max {
+            return Vec::new();
         }
 
-        result
+        let skip_count = limit
+            .map(|(offset, _)| offset)
+            .unwrap_or(0);
+
+        let take_count = limit
+            .map(|(_, count)| count)
+            .unwrap_or(usize::MAX);
+
+        if take_count == 0 {
+            return Vec::new();
+        }
+
+        /*
+         * BTreeSet 的 key 是：
+         *
+         *     (score, member)
+         *
+         * Bytes::new() 是所有非空 Bytes 的最小值，因此可以从：
+         *
+         *     (min, "")
+         *
+         * 开始 range。
+         *
+         * 不能写：
+         *
+         *     ..=(max, Bytes::new())
+         *
+         * 因为这会漏掉：
+         *
+         *     (max, "abc")
+         *     (max, "xyz")
+         *
+         * 所以这里只设置下界，然后通过 take_while 控制 score 上界。
+         */
+        let start = (OrderedFloat(min), Bytes::new());
+
+        self.tree
+            .range(start..)
+            .take_while(|(score, _)| score.0 <= max)
+            .skip(skip_count)
+            .take(take_count)
+            .map(|(score, member)| (member.clone(), score.0))
+            .collect()
     }
 
-    /// 删除指定的成员，返回实际删除的数量
-    /// 时间复杂度：O(M * log(N))，M 是要删除的成员数
+    /// 删除指定成员。
+    ///
+    /// 时间复杂度：
+    ///
+    /// O(M * log N)
+    ///
+    /// M = members 数量
     pub fn zrem(&mut self, members: &[Bytes]) -> i64 {
         let mut removed = 0i64;
 
         for member in members {
             if let Some(score) = self.hash.remove(member) {
-                // 从 tree 中删除（tree 的 key 是 (score, member)）
-                self.tree.remove(&(OrderedFloat(score), member.clone()));
+                self.tree
+                    .remove(&(OrderedFloat(score), member.clone()));
+
                 removed += 1;
             }
         }
 
         removed
     }
-    pub fn zincrby(&mut self, member: Bytes, increment: f64) -> Option<f64> {
-        let old_score = self.hash.get(&member).copied().unwrap_or(0.0);
-        let new_score = old_score + increment;
 
-        // Redis does not allow NaN as a sorted-set score.
+    /// ZINCRBY
+    ///
+    /// member 不存在时，相当于从 0 开始增加。
+    pub fn zincrby(
+        &mut self,
+        member: Bytes,
+        increment: f64,
+    ) -> Option<f64> {
+        let old_score = self.hash.get(&member).copied();
+
+        let new_score = old_score.unwrap_or(0.0) + increment;
+
+        // Redis 不允许 NaN score。
         if new_score.is_nan() {
             return None;
         }
 
-        if let Some(old_score) = self.hash.get(&member).copied() {
+        if let Some(old_score) = old_score {
+            // 如果 score 没变化，就不需要重新插入 tree。
+            if old_score == new_score {
+                return Some(new_score);
+            }
+
             self.tree
                 .remove(&(OrderedFloat(old_score), member.clone()));
         }
 
         self.tree
-            .insert((OrderedFloat(new_score), member.clone()), ());
+            .insert((OrderedFloat(new_score), member.clone()));
+
         self.hash.insert(member, new_score);
 
         Some(new_score)
     }
 
+    /// ZSCORE
+    #[inline]
     pub fn zscore(&self, member: &Bytes) -> Option<f64> {
-        self.hash.get(member).cloned()
+        self.hash.get(member).copied()
     }
 
+    /// ZRANK
+    ///
+    /// 当前复杂度仍然是 O(N)。
     pub fn zrank(&self, member: &Bytes) -> Option<i64> {
-        self.hash.get(member)?;
+        let score = self.hash.get(member).copied()?;
+
+        /*
+         * 已经知道 score，所以不需要像原代码一样：
+         *
+         * self.tree.iter().position(|(_, m)| m == member)
+         *
+         * 从逻辑上搜索 member。
+         *
+         * 不过 std::collections::BTreeSet 不提供 order-statistics，
+         * 所以获取 rank 本身仍需要迭代，复杂度 O(N)。
+         */
+        let key = (OrderedFloat(score), member.clone());
+
         self.tree
-            .keys()
-            .position(|(_, current_member)| current_member == member)
+            .iter()
+            .position(|item| item == &key)
             .map(|rank| rank as i64)
     }
 
+    /// ZREVRANK
+    ///
+    /// 当前复杂度 O(N)。
     pub fn zrevrank(&self, member: &Bytes) -> Option<i64> {
-        self.hash.get(member)?;
+        let score = self.hash.get(member).copied()?;
+
+        let key = (OrderedFloat(score), member.clone());
+
         self.tree
-            .keys()
+            .iter()
             .rev()
-            .position(|(_, current_member)| current_member == member)
+            .position(|item| item == &key)
             .map(|rank| rank as i64)
     }
-    /// 检查集合是否为空
+
+    /// 检查集合是否为空。
     #[inline]
     pub fn is_empty(&self) -> bool {
         self.hash.is_empty()
     }
 
-    pub fn zpop_min(&mut self, count: Option<usize>) -> Vec<(Bytes, f64)> {
+    /// ZPOPMIN
+    pub fn zpop_min(
+        &mut self,
+        count: Option<usize>,
+    ) -> Vec<(Bytes, f64)> {
         let count = match count {
             None => 1,
-            Some(0) => return Vec::default(),
+            Some(0) => return Vec::new(),
             Some(count) => count,
         };
-        let mut values = Vec::with_capacity(count);
+
+        let mut values = Vec::with_capacity(
+            count.min(self.tree.len())
+        );
 
         for _ in 0..count {
-            let (score, value) = match self.tree.pop_first() {
-                Some((value, _)) => value,
+            let (score, member) = match self.tree.pop_first() {
+                Some(value) => value,
                 None => break,
             };
 
-            self.hash.remove(&value);
+            self.hash.remove(&member);
 
-            values.push((value, score.0));
+            values.push((member, score.0));
         }
 
         values
@@ -262,8 +408,8 @@ pub enum HashValue {
 impl HashValue {
     pub(crate) fn to_bytes(&self) -> Bytes {
         match self {
-            HashValue::Str(str) => str.clone(),
-            HashValue::Int(int) => int.to_string().into(),
+            HashValue::Str(value) => value.clone(),
+            HashValue::Int(value) => value.to_string().into(),
         }
     }
 }
@@ -271,18 +417,23 @@ impl HashValue {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum ValueObject {
     Int(i64),
+
     String(Bytes),
+
     #[serde(with = "mutex_vecdeque_serde")]
     List(Arc<Mutex<VecDeque<Bytes>>>),
+
     #[serde(with = "mutex_hashmap_serde")]
     Hash(Arc<Mutex<HashMap<Bytes, HashValue>>>),
+
     #[serde(with = "mutex_zset_serde")]
     ZSet(Arc<Mutex<SortedSet>>),
+
     #[serde(with = "mutex_hashset_serde")]
     Set(Arc<Mutex<HashSet<Bytes>>>),
 }
 
-// Universal serialization macro
+// 通用 Arc<Mutex<T>> serde 实现宏
 macro_rules! impl_mutex_serde {
     ($mod_name:ident, $inner_type:ty) => {
         mod $mod_name {
@@ -301,7 +452,9 @@ macro_rules! impl_mutex_serde {
                 guard.serialize(serializer)
             }
 
-            pub fn deserialize<'de, D>(deserializer: D) -> Result<Arc<Mutex<$inner_type>>, D::Error>
+            pub fn deserialize<'de, D>(
+                deserializer: D,
+            ) -> Result<Arc<Mutex<$inner_type>>, D::Error>
             where
                 D: Deserializer<'de>,
             {
@@ -312,7 +465,22 @@ macro_rules! impl_mutex_serde {
     };
 }
 
-impl_mutex_serde!(mutex_vecdeque_serde, VecDeque<Bytes>);
-impl_mutex_serde!(mutex_hashmap_serde, HashMap<Bytes, HashValue>);
-impl_mutex_serde!(mutex_zset_serde, SortedSet);
-impl_mutex_serde!(mutex_hashset_serde, HashSet<Bytes>);
+impl_mutex_serde!(
+    mutex_vecdeque_serde,
+    VecDeque<Bytes>
+);
+
+impl_mutex_serde!(
+    mutex_hashmap_serde,
+    HashMap<Bytes, HashValue>
+);
+
+impl_mutex_serde!(
+    mutex_zset_serde,
+    SortedSet
+);
+
+impl_mutex_serde!(
+    mutex_hashset_serde,
+    HashSet<Bytes>
+);

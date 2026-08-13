@@ -5,7 +5,6 @@ pub mod model;
 pub mod raft_network;
 pub mod pipeline_client;
 pub mod redis_server;
-pub mod router;
 pub mod rpc;
 pub mod tls;
 
