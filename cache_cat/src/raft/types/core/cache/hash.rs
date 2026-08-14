@@ -1,5 +1,6 @@
 use crate::protocol::hash::hdel::HDelReq;
 use crate::protocol::hash::hincrby::HIncrReq;
+use crate::protocol::hash::hmset::HMSetReq;
 use crate::protocol::hash::hset::HSetReq;
 use crate::protocol::hash::hsetnx::HSetNxReq;
 use crate::raft::types::core::mocha::core::{MyCache, Update};
@@ -16,6 +17,9 @@ impl MyCache {
         self.execute_compute(param, update)
     }
     pub fn h_incr(&self, param: HIncrReq, update: &mut Update) -> Value {
+        self.execute_compute(param, update)
+    }
+    pub fn h_mset(&self, param: HMSetReq, update: &mut Update) -> Value {
         self.execute_compute(param, update)
     }
 }

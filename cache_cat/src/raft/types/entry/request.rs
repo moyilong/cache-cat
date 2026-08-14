@@ -155,6 +155,7 @@ impl fmt::Display for Request {
                 BaseOperation::ZPopMin(req) => write!(f, "ZPopMin: {}", req),
                 BaseOperation::Unlink(req) => write!(f, "Unlink: {}", req),
                 BaseOperation::ZIncrBy(req) => write!(f, "ZIncrBy: {}", req),
+                BaseOperation::HMSet(req) => write!(f, "HMSet: {}", req),
             },
             Operation::Redis(op) => match op {
                 RedisOperation::RedisSet(req) => write!(f, "RedisSet: {}", req),

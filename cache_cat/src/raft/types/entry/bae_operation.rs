@@ -2,6 +2,7 @@ use crate::protocol::bitmap::bitfield::BitFieldReq;
 use crate::protocol::bitmap::setbit::SetBitReq;
 use crate::protocol::hash::hdel::HDelReq;
 use crate::protocol::hash::hincrby::HIncrReq;
+use crate::protocol::hash::hmset::HMSetReq;
 use crate::protocol::hash::hset::HSetReq;
 use crate::protocol::hash::hsetnx::HSetNxReq;
 use crate::protocol::key::del::DelReq;
@@ -71,6 +72,7 @@ pub enum BaseOperation {
     HIncr(HIncrReq),
     HDel(HDelReq),
     HSetNx(HSetNxReq),
+    HMSet(HMSetReq),
     // zset
     ZAdd(ZAddReq),
     ZRem(ZRemReq),
