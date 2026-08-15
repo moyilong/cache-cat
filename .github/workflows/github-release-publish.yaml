@@ -26,7 +26,7 @@ jobs:
           fi
 
       - name: Create GitHub Release
-        uses: actions/create-release@v1
+        uses: softprops/action-gh-release@v3
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
@@ -35,3 +35,5 @@ jobs:
           body: "This is an automated release."
           draft: false
           prerelease: ${{ steps.vars.outputs.is_prerelease }}
+          token: ${{ secrets.CUSTOM_GITHUB_TOKEN }}
+          repository: ${{ github.repository_owner }}/${{ github.repository }}
