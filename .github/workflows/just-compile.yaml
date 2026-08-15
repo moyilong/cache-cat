@@ -5,7 +5,6 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
     strategy:
       matrix:
         include:
@@ -21,8 +20,9 @@ jobs:
             target: linux-arm64
             os: ubuntu-latest
 
-          # - toolchain: aarch64-apple-darwin
-          #   target: macos-arm64
+          - toolchain: aarch64-apple-darwin
+            target: macos-arm64
+            os: macos-latest
 
           - toolchain: x86_64-pc-windows-gnu
             target: win-x64
@@ -32,6 +32,7 @@ jobs:
             target: win-arm64
             os: ubuntu-latest
 
+    runs-on: ${{ matrix.os }}
     permissions:
       contents: read
       packages: write
@@ -39,6 +40,14 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
+
+      - name: Setup Xcode for macOS targets
+        if: ${{ matrix.os }} == macos-latest
+        run: |
+          xcodebuild -version
+          xcrun --sdk macosx --show-sdk-path
+          echo "SDKROOT=$(xcrun --sdk macosx --show-sdk-path)" >> $GITHUB_ENV
+          echo "DEVELOPER_DIR=$(xcode-select -p)" >> $GITHUB_ENV
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
