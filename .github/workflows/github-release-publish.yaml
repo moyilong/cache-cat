@@ -31,9 +31,9 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           tag_name: ${{ steps.vars.outputs.image_tag }}
-          release_name: Release ${{ github.ref_name }}
+          release_name: ${{ github.ref_name }}
           body: "This is an automated release."
           draft: false
           prerelease: ${{ steps.vars.outputs.is_prerelease }}
           token: ${{ secrets.CUSTOM_GITHUB_TOKEN }}
-          repository: ${{ github.repository_owner }}/${{ github.repository }}
+          repository: ${{ github.repository }}
