@@ -18,8 +18,8 @@ jobs:
           - toolchain: aarch64-unknown-linux-musl
             target: linux-arm64
 
-          - toolchain: aarch64-apple-darwin
-            target: macos-arm64
+          # - toolchain: aarch64-apple-darwin
+          #   target: macos-arm64
 
     permissions:
       contents: read
