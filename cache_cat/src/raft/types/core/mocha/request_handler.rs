@@ -96,6 +96,7 @@ pub fn base_request(
         BaseOperation::ZPopMin(param) => my_cache.z_pop_min(param, update),
         BaseOperation::Unlink(param) => my_cache.unlink(param, update),
         BaseOperation::ZIncrBy(param) => my_cache.z_incr_by(param, update),
+        BaseOperation::HMSet(param) => my_cache.h_mset(param, update),
     }
 }
 

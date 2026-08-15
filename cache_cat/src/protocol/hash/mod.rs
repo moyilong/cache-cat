@@ -9,3 +9,4 @@ pub mod hmget;
 pub mod hset;
 pub mod hvals;
 pub mod hsetnx;
+pub mod hmset;
