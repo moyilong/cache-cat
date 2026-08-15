@@ -47,7 +47,9 @@ jobs:
 
       - name: Build
         run: |
-          cargo zigbuild --release --target ${{ matrix.toolchain }}
+          cargo zigbuild --release --target ${{ matrix.toolchain }} \
+            --bin cache_cat \
+            --bin cache_cat_ping
 
       - name: Upload artifact CacheCat
         uses: actions/upload-artifact@v4
