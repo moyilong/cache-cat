@@ -78,7 +78,7 @@ jobs:
           cargo zigbuild --release --target ${{ matrix.toolchain }} --bin cache_cat --bin cache_cat_ping
 
       - name: Build
-        if: ${{ matrix.build == 'zig' }}
+        if: ${{ matrix.build == 'raw' }}
         run: |
           cargo build --release --target ${{ matrix.toolchain }} --bin cache_cat --bin cache_cat_ping
 
