@@ -29,16 +29,12 @@ jobs:
         run: |
           mkdir -p release
           find -type f | grep -E 'cache_cat$|cache_cat_ping' | while read line; do
-            dest_file=$(basename $line)-$(echo $line | awk -F '/' '{print $2}')
+            dest_file=$(basename $line)-$(echo $line | awk -F '/' '{print $2}' | sed 's/cache_cat//g')
             echo "Source: $line"
             echo "Target: $dest_file"
-            mv $line release/$dest_file
-            sha256sum  $line > release/${dest_file}.sha256
+            cp $line release/$dest_file
+            sha256sum $line > release/${dest_file}.sha256
           done
-
-      - name: Hash Files
-        run: |
-          
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v3
