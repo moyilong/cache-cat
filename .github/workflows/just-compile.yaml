@@ -66,6 +66,9 @@ jobs:
           version: 0.13.0
       - name: Install LLVM and Clang
         uses: KyleMayes/install-llvm-action@v2
+        if: matrix.llvm == 'true'
+        with:
+          version: 18
       - name: Cache Rust dependencies
         uses: Swatinem/rust-cache@v2
 
