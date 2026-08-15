@@ -4,9 +4,8 @@ on:
   workflow_dispatch:
     
 jobs:
-  build-and-push:
+  build:
     runs-on: ubuntu-latest
-
     strategy:
       matrix:
         include:
@@ -56,6 +55,10 @@ jobs:
             target/${{matrix.toolchain}}/release/cache_cat_ping
 
   publish-docker:
+    needs: build
     uses: ./.github/workflows/docker-build-publish.yaml
-  publish-artficats:
+    
+
+  publish-artifacts:
+    needs: build
     uses: ./.github/workflows/github-release-publish.yaml
