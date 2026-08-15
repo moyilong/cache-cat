@@ -28,7 +28,7 @@ jobs:
       - name: Rename files
         run: |
           mkdir -p release
-          find -type f | grep -E 'cache_cat$|cache_cat_ping' | while read line; do
+          find -type f | grep -E 'cache_cat$' | while read line; do
             dest_file=$(basename $line)$(echo $line | awk -F '/' '{print $2}' | sed 's/cache_cat//g')
             echo "Source: $line"
             echo "Target: $dest_file"
