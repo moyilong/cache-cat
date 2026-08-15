@@ -25,7 +25,7 @@ jobs:
 
           - toolchain: aarch64-apple-darwin
             target: macos-arm64
-            os: macos-latest
+            os: macos-latest-arm
             llvm: false
 
           - toolchain: x86_64-pc-windows-msvc
@@ -48,7 +48,7 @@ jobs:
         uses: actions/checkout@v3
 
       - name: Setup Xcode for macOS targets
-        if: matrix.os == 'macos-latest'
+        if: matrix.os == 'macos-latest-arm'
         run: |
           xcodebuild -version
           xcrun --sdk macosx --show-sdk-path
