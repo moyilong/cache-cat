@@ -82,7 +82,7 @@ jobs:
       - name: Build MacOS
         if: matrix.target == 'macos-arm64'
         run: |
-          cargo --release --target ${{ matrix.toolchain }} --bin cache_cat --bin cache_cat_ping
+          cargo build --release --target ${{ matrix.toolchain }} --bin cache_cat --bin cache_cat_ping
       - name: Upload artifact CacheCat
         uses: actions/upload-artifact@v4
         with:
