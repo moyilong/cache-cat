@@ -12,8 +12,10 @@ jobs:
         include:
           - toolchain: x86_64-unknown-linux-musl
             target: linux-amd64
+
           - toolchain: riscv64gc-unknown-linux-musl
             target: linux-riscv64
+            
           - toolchain: aarch64-unknown-linux-musl
             target: linux-arm64
 
@@ -52,3 +54,8 @@ jobs:
           path: |
             target/${{matrix.toolchain}}/release/cache_cat
             target/${{matrix.toolchain}}/release/cache_cat_ping
+
+  publish-docker:
+    uses: ./.github/workflows/docker-build-publish.yaml
+  publish-artficats:
+    uses: ./.github/workflows/github-release-publish.yaml
