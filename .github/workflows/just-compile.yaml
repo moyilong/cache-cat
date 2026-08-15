@@ -11,15 +11,26 @@ jobs:
         include:
           - toolchain: x86_64-unknown-linux-musl
             target: linux-amd64
+            os: ubuntu-latest
 
           - toolchain: riscv64gc-unknown-linux-musl
             target: linux-riscv64
+            os: ubuntu-latest
 
           - toolchain: aarch64-unknown-linux-musl
             target: linux-arm64
+            os: ubuntu-latest
 
           # - toolchain: aarch64-apple-darwin
           #   target: macos-arm64
+
+          - toolchain: x86_64-pc-windows-gnu
+            target: win-x64
+            os: ubuntu-latest
+
+          - toolchain: aarch64-pc-windows-gnullvm
+            target: win-arm64
+            os: ubuntu-latest
 
     permissions:
       contents: read
