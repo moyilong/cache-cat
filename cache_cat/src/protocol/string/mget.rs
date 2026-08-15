@@ -82,7 +82,7 @@ impl MultiReadCommand for MgetParams {
 
     fn execute(&self, values: Vec<Option<EntrySnapshot<MyValue>>>) -> Value {
         let mut results = Vec::with_capacity(values.len());
-
+        
         for value in values {
             results.push(match value {
                 None => Value::BulkString(None),

@@ -157,6 +157,13 @@ impl MyCache {
     pub fn persist(&self, persist: PersistReq, update: &mut Update) -> Value {
         self.execute_compute(persist, update)
     }
+    pub fn dbsize(&self, db_number: u16) -> Value {
+        let cache = match self.get_cache(db_number) {
+            Err(err) => return err,
+            Ok(cache) => &cache.mocha,
+        };
+        Value::Integer(cache.len() as i64)
+    }
 
     pub fn expire(&self, param: ExpireReq, update: &mut Update) -> Value {
         self.execute_compute(param, update)

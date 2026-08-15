@@ -779,4 +779,7 @@ where
             false
         }
     }
+    pub fn len(&self) -> usize {
+        self.map.pin().len()
+    }
 }

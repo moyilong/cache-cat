@@ -14,6 +14,7 @@ use crate::protocol::hash::hmget::HMGetCommand;
 use crate::protocol::hash::hset::HSetCommand;
 use crate::protocol::hash::hsetnx::HSetNxCommand;
 use crate::protocol::hash::hvals::HValsCommand;
+use crate::protocol::key::dbsize::DbsizeCommand;
 use crate::protocol::key::del::DelCommand;
 use crate::protocol::key::exists::ExistsCommand;
 use crate::protocol::key::expire::ExpireCommand;
@@ -204,6 +205,7 @@ impl RaftCommandFactory {
         factory.register("UNLINK", UnlinkCommand);
         factory.register("ZREVRANK", ZRevRankCommand);
         factory.register("ZINCRBY", ZIncrByCommand);
+        factory.register("DBSIZE", DbsizeCommand);
         factory
     }
 

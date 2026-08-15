@@ -1,5 +1,6 @@
 pub mod del;
 
+pub mod dbsize;
 pub mod exists;
 pub mod expire;
 pub mod flushall;

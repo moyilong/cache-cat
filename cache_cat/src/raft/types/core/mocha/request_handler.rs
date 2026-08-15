@@ -46,6 +46,7 @@ pub fn read_request(
         ReadOperation::ZCount(param) => my_cache.execute_read(param, db_number, read_clock),
         ReadOperation::ZRank(param) => my_cache.execute_read(param, db_number, read_clock),
         ReadOperation::ZRevRank(param) => my_cache.execute_read(param, db_number, read_clock),
+        ReadOperation::DbSize(param) => my_cache.dbsize(db_number),
     }
 }
 

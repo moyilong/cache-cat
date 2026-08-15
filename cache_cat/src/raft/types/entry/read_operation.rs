@@ -8,6 +8,7 @@ use crate::protocol::hash::hkeys::HKeysParams;
 use crate::protocol::hash::hlen::HLenParams;
 use crate::protocol::hash::hmget::HMGetParams;
 use crate::protocol::hash::hvals::HValsParams;
+use crate::protocol::key::dbsize::DbsizeParams;
 use crate::protocol::key::exists::ExistsParams;
 use crate::protocol::key::keys::KeysParams;
 use crate::protocol::key::pttl::PTtlParams;
@@ -72,4 +73,5 @@ pub enum ReadOperation {
     ZCount(ZCountParams),
     ZRank(ZRankParams),
     ZRevRank(ZRevRankParams),
+    DbSize(DbsizeParams),
 }

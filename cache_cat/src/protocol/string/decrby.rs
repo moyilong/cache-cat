@@ -28,7 +28,7 @@ impl DecrByParams {
             return Err(ProtocolError::WrongArgCount("DECRBY"));
         }
 
-        let key = items[1]
+        let key = items[1]          
             .string_bytes_clone()
             .ok_or(ProtocolError::InvalidArgument("key"))?;
 
