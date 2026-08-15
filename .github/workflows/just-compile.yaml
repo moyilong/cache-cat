@@ -35,7 +35,7 @@ jobs:
 
           - toolchain: aarch64-pc-windows-msvc
             target: win-arm64
-            os: windows-latest
+            os: windows-latest-arm
             llvm: true
 
     runs-on: ${{ matrix.os }}
