@@ -11,26 +11,32 @@ jobs:
           - toolchain: x86_64-unknown-linux-musl
             target: linux-amd64
             os: ubuntu-latest
+            llvm: false
 
           - toolchain: riscv64gc-unknown-linux-musl
             target: linux-riscv64
             os: ubuntu-latest
+            llvm: false
 
           - toolchain: aarch64-unknown-linux-musl
             target: linux-arm64
             os: ubuntu-latest
+            llvm: false
 
           - toolchain: aarch64-apple-darwin
             target: macos-arm64
             os: macos-latest
+            llvm: false
 
           - toolchain: x86_64-pc-windows-gnu
             target: win-x64
             os: ubuntu-latest
+            llvm: true
 
           - toolchain: aarch64-pc-windows-gnullvm
             target: win-arm64
             os: ubuntu-latest
+            llvm: true
 
     runs-on: ${{ matrix.os }}
     permissions:
@@ -58,7 +64,8 @@ jobs:
         uses: mlugg/setup-zig@v2
         with:
           version: 0.13.0
-
+      - name: Install LLVM and Clang
+        uses: KyleMayes/install-llvm-action@v2
       - name: Cache Rust dependencies
         uses: Swatinem/rust-cache@v2
 
