@@ -56,8 +56,8 @@ jobs:
 
   publish-docker:
     needs: build
-    uses: ./.github/workflows/publishers/docker-build-publish.yaml
+    uses: ./.github/workflows/docker-build-publish.yaml
 
   publish-artifacts:
     needs: build
-    uses: ./.github/workflows/publishers/github-release-publish.yaml
+    uses: ./.github/workflows/github-release-publish.yaml
