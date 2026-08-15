@@ -11,32 +11,32 @@ jobs:
           - toolchain: x86_64-unknown-linux-musl
             target: linux-amd64
             os: ubuntu-latest
-            zig: "true"
+            build: zig
 
           - toolchain: riscv64gc-unknown-linux-musl
             target: linux-riscv64
             os: ubuntu-latest
-            zig: "true"
+            build: zig
 
           - toolchain: aarch64-unknown-linux-musl
             target: linux-arm64
             os: ubuntu-latest
-            zig: true"
+            build: zig
 
           - toolchain: aarch64-apple-darwin
             target: macos-arm64
             os: macos-latest-arm
-            zig: "false"
+            build: raw
 
           - toolchain: x86_64-pc-windows-msvc
             target: win-x64
             os: windows-latest
-            zig: "false"
+            build: raw
 
           - toolchain: aarch64-pc-windows-msvc
             target: win-arm64
             os: windows-latest-arm
-            zig: "false"
+            build: raw
 
     runs-on: ${{ matrix.os }}
     permissions:
@@ -61,7 +61,7 @@ jobs:
           targets: ${{ matrix.toolchain }}
 
       - name: Install Zig
-        if: ${{ matrix.zig == 'true' }}
+        if: ${{ matrix.build == 'zig' }}
         uses: mlugg/setup-zig@v2
         with:
           version: 0.13.0
@@ -69,16 +69,16 @@ jobs:
         uses: Swatinem/rust-cache@v2
 
       - name: Install cargo-zigbuild
-        if: ${{ matrix.zig == 'true' }}
+        if: ${{ matrix.build == 'zig' }}
         run: cargo install cargo-zigbuild --locked
 
       - name: Build Zig
-        if: ${{ matrix.zig == 'true' }}
+        if: ${{ matrix.build == 'zig' }}
         run: |
           cargo zigbuild --release --target ${{ matrix.toolchain }} --bin cache_cat --bin cache_cat_ping
 
       - name: Build
-        if: ${{ matrix.zig != 'true' }}
+        if: ${{ matrix.build == 'zig' }}
         run: |
           cargo build --release --target ${{ matrix.toolchain }} --bin cache_cat --bin cache_cat_ping
 
