@@ -72,11 +72,11 @@ jobs:
         if: matrix.zig == 'true'
         run: cargo install cargo-zigbuild --locked
 
-      - name: Build
+      - name: Build Zig
         if: matrix.zig == 'true'
         run: |
           cargo zigbuild --release --target ${{ matrix.toolchain }} --bin cache_cat --bin cache_cat_ping
-      - name: Build MacOS
+      - name: Build
         if: matrix.zig != 'true'
         run: |
           cargo build --release --target ${{ matrix.toolchain }} --bin cache_cat --bin cache_cat_ping
