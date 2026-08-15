@@ -2,7 +2,7 @@ name: Build and Upload Artifacts
 
 on:
   workflow_dispatch:
-  workflow_call:
+    
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
