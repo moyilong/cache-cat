@@ -30,12 +30,12 @@ jobs:
 
           - toolchain: x86_64-pc-windows-msvc
             target: win-x64
-            os: ubuntu-latest
+            os: windows-latest
             llvm: true
 
           - toolchain: aarch64-pc-windows-msvc
             target: win-arm64
-            os: ubuntu-latest
+            os: windows-latest
             llvm: true
 
     runs-on: ${{ matrix.os }}
