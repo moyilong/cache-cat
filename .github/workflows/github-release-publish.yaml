@@ -2,7 +2,6 @@ name: Publish Artifacts to Release
 
 on:
   workflow_call:
-  workflow_dispatch:
 
 jobs:
   push-release:
