@@ -11,32 +11,31 @@ jobs:
           - toolchain: x86_64-unknown-linux-musl
             target: linux-amd64
             os: ubuntu-latest
-            llvm: false
 
           - toolchain: riscv64gc-unknown-linux-musl
             target: linux-riscv64
             os: ubuntu-latest
-            llvm: false
+            zig: true
 
           - toolchain: aarch64-unknown-linux-musl
             target: linux-arm64
             os: ubuntu-latest
-            llvm: false
+            zig: true
 
           - toolchain: aarch64-apple-darwin
             target: macos-arm64
             os: macos-latest-arm
-            llvm: false
+            zig: false
 
           - toolchain: x86_64-pc-windows-msvc
             target: win-x64
             os: windows-latest
-            llvm: true
+            zig: false
 
           - toolchain: aarch64-pc-windows-msvc
             target: win-arm64
             os: windows-latest-arm
-            llvm: true
+            zig: false
 
     runs-on: ${{ matrix.os }}
     permissions:
@@ -61,28 +60,26 @@ jobs:
           targets: ${{ matrix.toolchain }}
 
       - name: Install Zig
+        if: matrix.zig == 'true'
         uses: mlugg/setup-zig@v2
         with:
           version: 0.13.0
-      - name: Install LLVM and Clang
-        uses: KyleMayes/install-llvm-action@v2
-        if: matrix.llvm == 'true'
-        with:
-          version: 18
       - name: Cache Rust dependencies
         uses: Swatinem/rust-cache@v2
 
       - name: Install cargo-zigbuild
+        if: matrix.zig == 'true'
         run: cargo install cargo-zigbuild --locked
 
       - name: Build
-        if: matrix.target != 'macos-arm64'
+        if: matrix.zig == 'true'
         run: |
           cargo zigbuild --release --target ${{ matrix.toolchain }} --bin cache_cat --bin cache_cat_ping
       - name: Build MacOS
-        if: matrix.target == 'macos-arm64'
+        if: matrix.zig != 'true'
         run: |
           cargo build --release --target ${{ matrix.toolchain }} --bin cache_cat --bin cache_cat_ping
+
       - name: Upload artifact CacheCat
         uses: actions/upload-artifact@v4
         with:
