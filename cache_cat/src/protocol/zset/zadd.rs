@@ -6,7 +6,6 @@ use crate::raft::network::redis_server::RedisServer;
 use crate::raft::types::core::mocha::cas::ComputeCommand;
 use crate::raft::types::core::mocha::core::MyValue;
 use crate::raft::types::core::response_value::Value;
-use crate::raft::types::core::value_object::SortedSet;
 use crate::raft::types::core::value_object::ValueObject::ZSet;
 use crate::raft::types::entry::bae_operation::BaseOperation;
 use crate::raft::types::entry::bae_operation::BaseOperation::ZAdd;
@@ -18,6 +17,7 @@ use serde::{Deserialize, Serialize};
 use std::fmt;
 use std::fmt::Display;
 use std::sync::Arc;
+use crate::raft::types::core::sorted_set::SortedSet;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ZAddParam {

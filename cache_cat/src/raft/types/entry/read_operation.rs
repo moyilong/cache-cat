@@ -35,6 +35,7 @@ use crate::protocol::zset::zrank::ZRankParams;
 use crate::protocol::zset::zrevrank::ZRevRankParams;
 use crate::protocol::zset::zscore::ZScoreParams;
 use serde::{Deserialize, Serialize};
+use crate::protocol::server::memory::usage::MemoryUsageParams;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum ReadOperation {
@@ -74,4 +75,5 @@ pub enum ReadOperation {
     ZRank(ZRankParams),
     ZRevRank(ZRevRankParams),
     DbSize(DbsizeParams),
+    MemoryUsage(MemoryUsageParams),
 }

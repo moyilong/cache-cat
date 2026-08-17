@@ -15,7 +15,7 @@ pub mod lua_env;
 pub mod pub_sub;
 mod raft_command;
 pub mod sentinel;
-mod server;
+pub mod server;
 
 /// Special value indicating no expiration (0 means never expire)
 pub const NO_EXPIRATION: u64 = 0;

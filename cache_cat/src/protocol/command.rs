@@ -23,6 +23,7 @@ use crate::protocol::hash::hmget::HMGetCommand;
 use crate::protocol::hash::hset::HSetCommand;
 use crate::protocol::hash::hsetnx::HSetNxCommand;
 use crate::protocol::hash::hvals::HValsCommand;
+use crate::protocol::key::dbsize::DbsizeCommand;
 use crate::protocol::key::del::DelCommand;
 use crate::protocol::key::exists::ExistsCommand;
 use crate::protocol::key::expire::ExpireCommand;
@@ -58,6 +59,7 @@ use crate::protocol::pub_sub::subscribe::SubscribeCommand;
 use crate::protocol::pub_sub::unsubscribe::UnsubscribeCommand;
 use crate::protocol::sentinel::core::SentinelCommand;
 use crate::protocol::server::bgsave::BgsaveCommand;
+use crate::protocol::server::memory::core::MemoryCommand;
 use crate::protocol::server::save::SaveCommand;
 use crate::protocol::server::shutdown::ShutdownCommand;
 use crate::protocol::server::time::TimeCommand;
@@ -116,7 +118,6 @@ use tokio::select;
 use tokio::sync::watch;
 use tokio_util::codec::Framed;
 use tracing::{error, warn};
-use crate::protocol::key::dbsize::DbsizeCommand;
 
 #[async_trait]
 pub trait Command: Send + Sync {
@@ -279,6 +280,7 @@ impl CommandFactory {
         factory.register("AUTH", AuthCommand);
         factory.register("CLIENT", ClientCommand::new());
         factory.register("HELLO", HelloCommand);
+        factory.register("MEMORY", MemoryCommand::new());
         // Register data commands
         factory.register("GET", GetCommand);
         factory.register("SET", SetCommand);

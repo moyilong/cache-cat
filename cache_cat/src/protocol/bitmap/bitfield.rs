@@ -456,8 +456,7 @@ fn write_bitfield(bytes: &mut BytesMut, encoding: BitFieldEncoding, offset: u64,
     }
 }
 
-/// 根据你的 Value 定义调整这里即可。
-///
+
 /// 假设 response_value::Value 中的 RESP Null 变体叫做 `Null`。
 /// 如果项目中叫做 Nil、NullBulkString 等，只需要改这一行。
 #[inline]

@@ -6,7 +6,7 @@ use crate::raft::network::redis_server::RedisServer;
 use crate::raft::types::core::mocha::cas::ComputeCommand;
 use crate::raft::types::core::mocha::core::MyValue;
 use crate::raft::types::core::response_value::Value;
-use crate::raft::types::core::value_object::{SortedSet, ValueObject};
+use crate::raft::types::core::value_object::ValueObject;
 use crate::raft::types::entry::bae_operation::BaseOperation;
 use crate::raft::types::entry::bae_operation::BaseOperation::ZIncrBy;
 use crate::raft::types::entry::request::Operation;
@@ -16,6 +16,7 @@ use parking_lot::Mutex;
 use serde::{Deserialize, Serialize};
 use std::fmt;
 use std::sync::Arc;
+use crate::raft::types::core::sorted_set::SortedSet;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ZIncrByParam {
@@ -175,8 +176,7 @@ impl ComputeCommand for ZIncrByReq {
             _ => (
                 MochaOperation::Abort,
                 Value::Error(
-                    "WRONGTYPE Operation against a key holding the wrong kind of value"
-                        .to_string(),
+                    "WRONGTYPE Operation against a key holding the wrong kind of value".to_string(),
                 ),
             ),
         }
@@ -190,9 +190,7 @@ impl ComputeCommand for ZIncrByReq {
             None => {
                 return (
                     MochaOperation::Abort,
-                    Value::Error(
-                        "ERR resulting score is not a number (NaN)".to_string(),
-                    ),
+                    Value::Error("ERR resulting score is not a number (NaN)".to_string()),
                 );
             }
         };

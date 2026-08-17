@@ -119,6 +119,7 @@ impl fmt::Display for Request {
                 ReadOperation::ZRank(req) => write!(f, "ZRank: {}", req),
                 ReadOperation::ZRevRank(req) => write!(f, "ZRevRank: {}", req),
                 ReadOperation::DbSize(req) => write!(f, "DbSize: {}", req),
+                ReadOperation::MemoryUsage(req) => write!(f, "MemoryUsage: {}", req),
             },
             Operation::Base(op) => match op {
                 BaseOperation::Empty => write!(f, "None"),
