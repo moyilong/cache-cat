@@ -398,7 +398,6 @@ impl SortedSet {
 
     /// 估算 SortedSet 额外占用的 heap 内存。
     ///
-    /// 注意：
     /// - 不包含 `size_of::<SortedSet>()`
     /// - `samples == 0` 表示统计全部元素
     /// - `samples > 0` 表示采样指定数量，然后估算整体 payload

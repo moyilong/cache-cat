@@ -31,7 +31,7 @@ tokio-util = { version = "0.7.18", features = ["codec"] }
 bincode2 = "2.0.1"
 bytes = { version = "1.11.1", features = ["serde"] }
 async-trait = "0.1.89"
-mimalloc = "0.1.50"
+mimalloc = { version = "0.1.52", features = ["extended"] }
 crossbeam-utils = "0.8.21"
 parking_lot = "0.12.5"
 raft-engine = { git = "https://github.com/nasuiyile/raft-engine-serde" }
@@ -54,6 +54,7 @@ rustls = "0.23"
 tokio-rustls = "0.26"
 rustls-pemfile = "2.2.0"
 rand = "0.8.5"
+serde_json = "1.0.149"
 [dev-dependencies]
 anyhow = "1.0.102"
 tempfile = "3.27.0"

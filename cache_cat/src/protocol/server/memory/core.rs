@@ -4,6 +4,7 @@ use crate::raft::network::redis_server::RedisServer;
 use crate::raft::types::core::response_value::Value;
 use async_trait::async_trait;
 use std::collections::HashMap;
+use crate::protocol::server::memory::stats::MemoryStatsCommand;
 use crate::protocol::server::memory::usage::MemoryUsageCommand;
 
 /// MEMORY command handler
@@ -15,6 +16,8 @@ impl MemoryCommand {
     pub fn new() -> Self {
         let mut sub_commands: HashMap<String, Box<dyn SubCommand>> = HashMap::new();
         sub_commands.insert("USAGE".to_string(), Box::new(MemoryUsageCommand));
+        sub_commands.insert("STATS".to_string(), Box::new(MemoryStatsCommand));
+
         Self { sub_commands }
     }
 }

@@ -205,3 +205,4 @@ print(r.dbsize())
 
 r.set("test30", "test")
 print(r.memory_usage("test30"))
+print(r.memory_stats())

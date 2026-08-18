@@ -55,7 +55,6 @@ impl ValueObject {
     /// - ZSet tree/hash
     /// - collection 中 Bytes 的 payload
     ///
-    /// 注意：
     /// 这是 logical / approximate memory usage，
     /// 不是 jemalloc / system allocator 的精确 allocated size。
     pub fn estimated_memory_usage(&self, samples: usize) -> usize {
@@ -86,7 +85,6 @@ impl ValueObject {
                  *
                  * 这里统计它指向的数据。
                  *
-                 * 注意：
                  * Bytes 可以 slice / share backing allocation，
                  * 所以 len() 是逻辑 payload 大小，并不是 allocator
                  * 的精确 allocation size。

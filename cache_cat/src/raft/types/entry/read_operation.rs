@@ -17,6 +17,7 @@ use crate::protocol::key::type_::TypeParams;
 use crate::protocol::list::lindex::LIndexParams;
 use crate::protocol::list::llen::LLenParams;
 use crate::protocol::list::lrange::LRangeParams;
+use crate::protocol::server::memory::usage::MemoryUsageParams;
 use crate::protocol::set::scard::SCardParams;
 use crate::protocol::set::sdiff::SDiffParams;
 use crate::protocol::set::sinter::SInterParams;
@@ -35,7 +36,6 @@ use crate::protocol::zset::zrank::ZRankParams;
 use crate::protocol::zset::zrevrank::ZRevRankParams;
 use crate::protocol::zset::zscore::ZScoreParams;
 use serde::{Deserialize, Serialize};
-use crate::protocol::server::memory::usage::MemoryUsageParams;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum ReadOperation {
