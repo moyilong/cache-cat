@@ -32,10 +32,11 @@ bincode2 = "2.0.1"
 bytes = { version = "1.11.1", features = ["serde"] }
 async-trait = "0.1.89"
 mimalloc = { version = "0.1.52", features = ["extended"] }
+libmimalloc-sys = "0.1.49"
 crossbeam-utils = "0.8.21"
 parking_lot = "0.12.5"
 raft-engine = { git = "https://github.com/nasuiyile/raft-engine-serde" }
-time = { version = "0.3", features = ["local-offset"] }
+#time = { version = "0.3", features = ["local-offset"] }
 tracing-subscriber = { version = "0.3.23", features = ["local-time"] }
 uuid = { version = "1.23.1", features = ["v4", "serde"] }
 #遥测相关默认不启用
