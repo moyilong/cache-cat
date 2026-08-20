@@ -8,14 +8,17 @@ use crate::raft::types::core::mocha::request_handler::{base_request, do_request}
 use crate::raft::types::core::response_value::Value;
 use crate::raft::types::entry::request::AtomicRequest;
 use crate::raft::types::file_operator::FileOperator;
-use crate::raft::types::raft_types::{NodeId, TypeConfig};
+use crate::raft::types::raft_types::{
+    LogId, NodeId, Snapshot, SnapshotMeta, StoredMembership, TypeConfig,
+};
 use futures::Stream;
 use futures::TryStreamExt;
+use openraft::EntryPayload;
+use openraft::OptionalSend;
+use openraft::RaftSnapshotBuilder;
+use openraft::alias::SnapshotOf;
 use openraft::storage::EntryResponder;
 use openraft::storage::RaftStateMachine;
-use openraft::{EntryPayload, LogId, SnapshotMeta};
-use openraft::{OptionalSend, Snapshot, StoredMembership};
-use openraft::{RaftSnapshotBuilder, RaftTypeConfig};
 use std::io;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -35,9 +38,9 @@ pub struct RaftMetaData {
     //快照状态
     pub snapshot_state: SnapshotState,
 
-    pub last_applied_log_id: Option<LogId<TypeConfig>>,
+    pub last_applied_log_id: Option<LogId>,
 
-    pub last_membership: StoredMembership<TypeConfig>,
+    pub last_membership: StoredMembership,
 }
 
 impl RaftMetaData {
@@ -69,8 +72,10 @@ pub struct StateMachineData {
 }
 
 impl RaftSnapshotBuilder<TypeConfig> for StateMachineStore {
+    type SnapshotData = FileOperator;
+
     //这里是clone了一个self 然后调用build_snapshot
-    async fn build_snapshot(&mut self) -> Result<Snapshot<TypeConfig>, io::Error> {
+    async fn build_snapshot(&mut self) -> Result<Snapshot, io::Error> {
         tracing::info!("Starting snapshot...");
         let mut raft_meta = self.data.raft_meta_data.lock().await;
         if raft_meta.snapshot_state == SnapshotState::Start {
@@ -139,7 +144,7 @@ impl StateMachineStore {
         }
         Ok(sm)
     }
-    pub async fn update_meta_data(&mut self, metadata: SnapshotMeta<TypeConfig>) {
+    pub async fn update_meta_data(&mut self, metadata: SnapshotMeta) {
         let mut guard = self.data.raft_meta_data.lock().await;
         guard.last_membership = metadata.last_membership;
         guard.last_applied_log_id = metadata.last_log_id;
@@ -147,12 +152,12 @@ impl StateMachineStore {
 }
 
 impl RaftStateMachine<TypeConfig> for StateMachineStore {
+    type SnapshotData = FileOperator;
+
     type SnapshotBuilder = Self;
 
     //让 Raft 核心在启动或恢复时，知道状态机已经应用到哪个日志位置，以及当前有效的 membership 是什么。
-    async fn applied_state(
-        &mut self,
-    ) -> Result<(Option<LogId<TypeConfig>>, StoredMembership<TypeConfig>), io::Error> {
+    async fn applied_state(&mut self) -> Result<(Option<LogId>, StoredMembership), io::Error> {
         let meta_data = self.data.raft_meta_data.lock().await;
         Ok((
             meta_data.last_applied_log_id,
@@ -204,20 +209,20 @@ impl RaftStateMachine<TypeConfig> for StateMachineStore {
         Ok(())
     }
 
+    //这个方法必须要实现，但是从来不会被调用
+    // async fn begin_receiving_snapshot(&mut self) -> Result<FileOperator, io::Error> {
+    //     Ok(Default::default())
+    // }
+
     async fn get_snapshot_builder(&mut self) -> Self::SnapshotBuilder {
         self.clone()
-    }
-
-    //这个方法必须要实现，但是从来不会被调用
-    async fn begin_receiving_snapshot(&mut self) -> Result<FileOperator, io::Error> {
-        Ok(Default::default())
     }
 
     // Raft协议强制快照文件先持久化到磁盘，然后再应用到状态机。不能实现类似Redis的直接应用到状态机。
     async fn install_snapshot(
         &mut self,
-        _meta: &SnapshotMeta<TypeConfig>,
-        snapshot: <TypeConfig as RaftTypeConfig>::SnapshotData,
+        _meta: &SnapshotMeta,
+        snapshot: FileOperator,
     ) -> Result<(), io::Error> {
         tracing::info!("node {} snapshot start!!!!", self.node_id);
         let path_buf = snapshot.get_local_hard_link_buf(&self.path);
@@ -238,7 +243,7 @@ impl RaftStateMachine<TypeConfig> for StateMachineStore {
         Ok(())
     }
 
-    async fn get_current_snapshot(&mut self) -> Result<Option<Snapshot<TypeConfig>>, io::Error> {
+    async fn get_current_snapshot(&mut self) -> Result<Option<Snapshot>, io::Error> {
         let option = FileOperator::new(&self.path).await?;
         match option {
             None => Ok(None),

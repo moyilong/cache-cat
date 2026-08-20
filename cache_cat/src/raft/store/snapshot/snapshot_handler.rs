@@ -2,8 +2,7 @@ use crate::raft::store::statemachine::RaftMetaData;
 use crate::raft::store::statemachine::SnapshotState::{End, Tail};
 use crate::raft::types::core::mocha::core::MyCache;
 use crate::raft::types::entry::request::AtomicRequest;
-use crate::raft::types::raft_types::TypeConfig;
-use openraft::SnapshotMeta;
+use crate::raft::types::raft_types::{SnapshotMeta, TypeConfig};
 use serde::{Deserialize, Serialize};
 use std::io::SeekFrom;
 use std::path::Path;
@@ -31,7 +30,7 @@ pub fn get_snapshot_file_name() -> String {
 
 #[derive(Serialize, Deserialize)]
 struct CacheCatSnapshotMeta {
-    pub meta: SnapshotMeta<TypeConfig>,
+    pub meta: SnapshotMeta,
     pub write_clock: u64,
 }
 
@@ -76,7 +75,7 @@ where
     let snapshot_meta = SnapshotMeta {
         last_log_id: raft_meta_data.last_applied_log_id,
         last_membership: raft_meta_data.last_membership.clone(),
-        snapshot_id: "".into(),
+        // snapshot_id: "".into(),
     };
     let cache_cat_snapshot_meta = CacheCatSnapshotMeta {
         meta: snapshot_meta,
@@ -103,7 +102,7 @@ where
 pub async fn load_cache_from_path<P>(
     cache: Arc<MyCache>,
     path: P,
-) -> Result<Option<(SnapshotMeta<TypeConfig>, Vec<AtomicRequest>)>, io::Error>
+) -> Result<Option<(SnapshotMeta, Vec<AtomicRequest>)>, io::Error>
 where
     P: AsRef<Path>,
 {

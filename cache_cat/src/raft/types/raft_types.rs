@@ -25,7 +25,7 @@ use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::broadcast;
 
-pub type SnapshotData = tokio::fs::File;
+// pub type SnapshotData = tokio::fs::File;
 
 pub type NodeId = u16;
 
@@ -49,7 +49,7 @@ openraft::declare_raft_types!(
         R = Value,
         NodeId = NodeId,
         Node = Node,
-        SnapshotData = FileOperator,
+        // SnapshotData = FileOperator,
 );
 
 pub struct CacheCatApp {
@@ -150,13 +150,17 @@ impl CacheCatApp {
     }
 }
 
-pub type Entry = openraft::Entry<TypeConfig>;
+pub type Entry = <TypeConfig as openraft::RaftTypeConfig>::Entry;
 pub type LogState = openraft::storage::LogState<TypeConfig>;
-pub type LogId = openraft::LogId<TypeConfig>;
+
+pub type LogId = openraft::alias::LogIdOf<TypeConfig>;
+// pub type LogId = openraft::LogId<TypeConfig>;
 pub type LeaderId = <TypeConfig as openraft::RaftTypeConfig>::LeaderId;
 
 pub type ForwardToLeader = openraft::error::ForwardToLeader<TypeConfig>;
-pub type StoredMembership = openraft::StoredMembership<TypeConfig>;
-pub type Snapshot = openraft::Snapshot<TypeConfig>;
-pub type SnapshotMeta = openraft::SnapshotMeta<TypeConfig>;
-pub type Raft = openraft::Raft<TypeConfig>;
+pub type StoredMembership = openraft::alias::StoredMembershipOf<TypeConfig>;
+pub type Snapshot = openraft::alias::SnapshotOf<TypeConfig, FileOperator>;
+pub type SnapshotMeta = openraft::alias::SnapshotMetaOf<TypeConfig>;
+pub type Raft = openraft::Raft<TypeConfig, StateMachineStore>;
+pub type MemberShip = openraft::alias::MembershipStateOf<TypeConfig>;
+pub type ChangeMembers = openraft::ChangeMembers<NodeId, Node>;

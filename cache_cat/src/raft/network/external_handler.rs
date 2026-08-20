@@ -8,14 +8,14 @@ use crate::raft::network::model::{
 use crate::raft::types::entry::membership::JoinRequest;
 use crate::raft::types::entry::read_operation::ReadOperation::Get;
 use crate::raft::types::entry::request::Request;
-use crate::raft::types::raft_types::{CacheCatApp, Node, TypeConfig};
+use crate::raft::types::raft_types::{CacheCatApp, Node, Snapshot, TypeConfig};
 use async_trait::async_trait;
 use bytes::Bytes;
 use futures::StreamExt;
+use openraft::ChangeMembers;
 use openraft::raft::{
     AppendEntriesResponse, ClientWriteResponse, SnapshotResponse, VoteResponse, WriteResult,
 };
-use openraft::{ChangeMembers, Snapshot};
 use serde::Serialize;
 use serde::de::DeserializeOwned;
 use std::collections::BTreeMap;

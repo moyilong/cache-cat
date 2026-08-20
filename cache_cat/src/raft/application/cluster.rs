@@ -1,7 +1,7 @@
 use crate::error::{CacheCatError, Error, ProtocolError, StorageError};
 use crate::raft::types::endpoint::Endpoint;
 use crate::raft::types::entry::request::Request;
-use crate::raft::types::raft_types::{Node, NodeId, Raft, TypeConfig};
+use crate::raft::types::raft_types::{ChangeMembers, Node, NodeId, Raft, Snapshot, TypeConfig};
 use openraft::ReadPolicy::LeaseRead;
 use openraft::alias::{JoinErrorOf, VoteOf};
 use openraft::async_runtime::WatchReceiver;
@@ -12,7 +12,7 @@ use openraft::raft::{
     AppendEntriesRequest, AppendEntriesResponse, ClientWriteResponse, SnapshotResponse,
     VoteRequest, VoteResponse, WriteResult,
 };
-use openraft::{ChangeMembers, Instant, ReadPolicy, Snapshot, WatchChangeHandle};
+use openraft::{Instant, ReadPolicy, WatchChangeHandle};
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::sync::Arc;
@@ -205,7 +205,7 @@ impl Cluster {
     pub async fn install_full_snapshot(
         &self,
         vote: VoteOf<TypeConfig>,
-        snapshot: Snapshot<TypeConfig>,
+        snapshot: Snapshot,
     ) -> Result<SnapshotResponse<TypeConfig>, Fatal<TypeConfig>> {
         self.raft.install_full_snapshot(vote, snapshot).await
     }
@@ -224,12 +224,12 @@ impl Cluster {
 
         let mut set: BTreeSet<NodeId> = BTreeSet::new();
         set.insert(self.node_id());
-        let changes: ChangeMembers<TypeConfig> = ChangeMembers::RemoveVoters(set);
+        let changes: ChangeMembers = ChangeMembers::RemoveVoters(set);
         self.raft.change_membership(changes, true).await?;
 
         let mut set: BTreeSet<NodeId> = BTreeSet::new();
         set.insert(self.node_id());
-        let changes: ChangeMembers<TypeConfig> = ChangeMembers::RemoveNodes(set);
+        let changes: ChangeMembers = ChangeMembers::RemoveNodes(set);
         self.raft.change_membership(changes, true).await?;
         Ok(())
     }
@@ -241,7 +241,7 @@ impl Cluster {
     #[inline]
     pub async fn change_membership(
         &self,
-        members: impl Into<ChangeMembers<TypeConfig>>,
+        members: impl Into<ChangeMembers>,
     ) -> Result<ClientWriteResponse<TypeConfig>, RaftError<TypeConfig, ClientWriteError<TypeConfig>>>
     {
         self.raft.change_membership(members, true).await
