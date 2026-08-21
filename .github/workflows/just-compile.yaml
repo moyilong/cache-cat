@@ -2,6 +2,9 @@ name: Build and Upload Artifacts
 
 on:
   workflow_dispatch:
+  push:
+    tags:
+      - 'v*'
 
 jobs:
   build:
