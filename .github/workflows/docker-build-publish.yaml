@@ -41,18 +41,14 @@ jobs:
               echo "EOF"
             } >> "$GITHUB_OUTPUT"
 
-          elif [[ "${GITHUB_REF}" =~ ^refs/tags/(v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?)$ ]]; then
+          else
             VERSION="${BASH_REMATCH[1]}"
             {
               echo "tags<<EOF"
               echo "ghcr.io/${{ github.repository }}:latest"
-              echo "ghcr.io/${{ github.repository }}:${VERSION}"
+              echo "ghcr.io/${{ github.repository }}:$(echo ${GITHUB_REF} | awk -F '/' '{print $NF}')"
               echo "EOF"
             } >> "$GITHUB_OUTPUT"
-
-          else
-            echo "Unsupported ref: ${GITHUB_REF}"
-            exit 1
           fi
           
       - name: Build docker and push to GHCR
