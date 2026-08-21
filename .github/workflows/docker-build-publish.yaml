@@ -1,19 +1,11 @@
 name: Publish Docker Image
 
 on:
-  workflow_dispatch:
-  push:
-    tags:
-      - "v*"
+  workflow_call:
+
 jobs:
-  build:
-    uses: ./.github/workflows/just-compile.yaml
-    permissions:
-      contents: read
-    
   push-docker:
     runs-on: ubuntu-latest
-    needs: build
     permissions:
       contents: read
       packages: write
@@ -22,22 +14,15 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - uses: actions/download-artifact@v4
-        with:
-          pattern: "*"
-          path: ./dist
+      - uses: actions/download-artifact@v8
 
-      - run: |
-          mkdir -p dist/linux
-          mv dist/build-output/cache_cat-x86_64-unknown-linux-musl dist/linux/amd64
-          mv dist/build-output/cache_cat-aarch64-unknown-linux-musl dist/linux/arm64
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v2
         with:
           platforms: all
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v2
+        uses: docker/setup-buildx-action@v3
 
       - name: Log in to GHCR
         uses: docker/login-action@v2
@@ -56,23 +41,22 @@ jobs:
               echo "EOF"
             } >> "$GITHUB_OUTPUT"
 
-          elif [[ "${GITHUB_REF}" =~ ^refs/tags/(v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?)$ ]]; then
+          else
             VERSION="${BASH_REMATCH[1]}"
             {
               echo "tags<<EOF"
               echo "ghcr.io/${{ github.repository }}:latest"
-              echo "ghcr.io/${{ github.repository }}:${VERSION}"
+              echo "ghcr.io/${{ github.repository }}:$(echo ${GITHUB_REF} | awk -F '/' '{print $NF}')"
               echo "EOF"
             } >> "$GITHUB_OUTPUT"
-
-          else
-            echo "Unsupported ref: ${GITHUB_REF}"
-            exit 1
           fi
+          
       - name: Build docker and push to GHCR
         uses: docker/build-push-action@v7
+        if: startsWith(github.ref, 'refs/tags/v')
         with:
           context: .
           push: true
-          platforms: linux/amd64, linux/arm64/v8
+          platforms: linux/amd64, linux/arm64/v8 #, linux/riscv64
           tags: ${{ steps.docker_tags.outputs.tags }}
+          files: target/*

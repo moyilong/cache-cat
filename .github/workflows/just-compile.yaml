@@ -1,11 +1,47 @@
-name: Build and Artifacts
+name: Build and Upload Artifacts
 
 on:
   workflow_dispatch:
-  workflow_call:
+  push:
+    tags:
+      - "v*"
+
 jobs:
-  build-and-push:
-    runs-on: ubuntu-latest
+  build:
+    strategy:
+      matrix:
+        include:
+          - toolchain: x86_64-unknown-linux-musl
+            target: linux-amd64
+            os: ubuntu-latest
+            build: zig
+
+          # - toolchain: riscv64gc-unknown-linux-musl
+          #   target: linux-riscv64
+          #   os: ubuntu-latest
+          #   build: zig
+
+          - toolchain: aarch64-unknown-linux-musl
+            target: linux-arm64
+            os: ubuntu-latest
+            build: zig
+
+          - toolchain: aarch64-apple-darwin
+            target: macos-arm64
+            os: macos-latest-arm
+            build: raw
+
+          - toolchain: x86_64-pc-windows-msvc
+            target: win-x64
+            os: windows-latest
+            build: raw
+
+          # - toolchain: aarch64-pc-windows-msvc
+          #   target: win-arm64
+          #   os: windows-latest-arm
+          #   build: raw
+
+    runs-on: ${{ matrix.os }}
     permissions:
       contents: read
 
@@ -13,40 +49,55 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v3
 
+      - name: Setup Xcode for macOS targets
+        if: ${{ matrix.os == 'macos-latest-arm'}}
+        run: |
+          xcodebuild -version
+          xcrun --sdk macosx --show-sdk-path
+          echo "SDKROOT=$(xcrun --sdk macosx --show-sdk-path)" >> $GITHUB_ENV
+          echo "DEVELOPER_DIR=$(xcode-select -p)" >> $GITHUB_ENV
+
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
         with:
-          targets: |
-            x86_64-unknown-linux-musl
-            aarch64-unknown-linux-musl
+          targets: ${{ matrix.toolchain }}
 
       - name: Install Zig
+        if: ${{ matrix.build == 'zig' }}
         uses: mlugg/setup-zig@v2
         with:
           version: 0.13.0
-
       - name: Cache Rust dependencies
         uses: Swatinem/rust-cache@v2
 
       - name: Install cargo-zigbuild
+        if: ${{ matrix.build == 'zig' }}
         run: cargo install cargo-zigbuild --locked
 
-      - name: Build
+      - name: Build Zig
+        if: ${{ matrix.build == 'zig' }}
         run: |
-          mkdir -p dist
+          cargo zigbuild --release --target ${{ matrix.toolchain }} --bin cache_cat --bin cache_cat_ping
 
-          build()
-          {
-            cargo zigbuild --release --target $1
-            cp -v target/$1/release/cache_cat dist/cache_cat-$1
-          }
+      - name: Build
+        if: ${{ matrix.build == 'raw' }}
+        run: |
+          cargo build --release --target ${{ matrix.toolchain }} --bin cache_cat --bin cache_cat_ping
 
-          build x86_64-unknown-linux-musl linux/amd64
-          build aarch64-unknown-linux-musl linux/arm64/v8
-
-      - name: 上传多个产物
+      - name: Upload artifact CacheCat
         uses: actions/upload-artifact@v4
         with:
-          name: build-output
+          name: cache_cat-${{matrix.target}}
           path: |
-            dist/
+            target/${{matrix.toolchain}}/release/cache_cat
+            target/${{matrix.toolchain}}/release/cache_cat_ping
+
+  publish-docker:
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/v')
+    uses: ./.github/workflows/docker-build-publish.yaml
+
+  publish-artifacts:
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/v')
+    uses: ./.github/workflows/github-release-publish.yaml

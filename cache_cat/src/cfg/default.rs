@@ -4,8 +4,8 @@ use crate::cfg::config::{RaftConfig, RedisConfig, TlsConfig};
 pub fn default_raft_config() -> RaftConfig {
     RaftConfig {
         log_path: ".data".to_string(),
-        address: "127.0.0.1:5001".to_string(),
-        advertise_host: "localhost".to_string(),
+        address: "0.0.0.0:5001".to_string(),
+        advertise_host: "0.0.0.0".to_string(),
         single: true,
         join: vec![],
         election_timeout: 699,
