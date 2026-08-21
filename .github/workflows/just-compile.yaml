@@ -82,12 +82,7 @@ jobs:
 
       - name: Build
         if: ${{ matrix.build == 'raw' }}
-        run: |
-          cargo build \
-            --release \
-            --target ${{ matrix.toolchain }} \
-            --bin cache_cat \
-            --bin cache_cat_ping
+        run: cargo build --release --target ${{ matrix.toolchain }} --bin cache_cat --bin cache_cat_ping
 
       #
       # 仍然保留 Actions artifact，给 Docker 或调试使用
