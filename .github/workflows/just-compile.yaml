@@ -9,48 +9,44 @@ on:
 jobs:
   build:
     strategy:
+      fail-fast: false
       matrix:
         include:
           - toolchain: x86_64-unknown-linux-musl
             target: linux-amd64
             os: ubuntu-latest
             build: zig
-
-          # - toolchain: riscv64gc-unknown-linux-musl
-          #   target: linux-riscv64
-          #   os: ubuntu-latest
-          #   build: zig
+            ext: ""
 
           - toolchain: aarch64-unknown-linux-musl
             target: linux-arm64
             os: ubuntu-latest
             build: zig
+            ext: ""
 
           - toolchain: aarch64-apple-darwin
             target: macos-arm64
             os: macos-latest-arm
             build: raw
+            ext: ""
 
           - toolchain: x86_64-pc-windows-msvc
             target: win-x64
             os: windows-latest
             build: raw
-
-          # - toolchain: aarch64-pc-windows-msvc
-          #   target: win-arm64
-          #   os: windows-latest-arm
-          #   build: raw
+            ext: ".exe"
 
     runs-on: ${{ matrix.os }}
+
     permissions:
-      contents: read
+      contents: write
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Setup Xcode for macOS targets
-        if: ${{ matrix.os == 'macos-latest-arm'}}
+        if: ${{ matrix.os == 'macos-latest-arm' }}
         run: |
           xcodebuild -version
           xcrun --sdk macosx --show-sdk-path
@@ -77,27 +73,42 @@ jobs:
       - name: Build Zig
         if: ${{ matrix.build == 'zig' }}
         run: |
-          cargo zigbuild --release --target ${{ matrix.toolchain }} --bin cache_cat --bin cache_cat_ping
+          cargo zigbuild \
+            --release \
+            --target ${{ matrix.toolchain }} \
+            --bin cache_cat \
+            --bin cache_cat_ping
 
       - name: Build
         if: ${{ matrix.build == 'raw' }}
-        run: |
-          cargo build --release --target ${{ matrix.toolchain }} --bin cache_cat --bin cache_cat_ping
+        run: cargo build --release --target ${{ matrix.toolchain }} --bin cache_cat --bin cache_cat_ping
 
-      - name: Upload artifact CacheCat
+      #
+      # 仍然保留 Actions artifact，给 Docker 或调试使用
+      #
+      - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: cache_cat-${{matrix.target}}
+          name: cache_cat-${{ matrix.target }}
           path: |
-            target/${{matrix.toolchain}}/release/cache_cat
-            target/${{matrix.toolchain}}/release/cache_cat_ping
+            target/${{ matrix.toolchain }}/release/cache_cat${{ matrix.ext }}
+            target/${{ matrix.toolchain }}/release/cache_cat_ping${{ matrix.ext }}
+      #
+      # 谁先 build 完，谁先上传
+      #
+      - name: Upload to GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v3
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: ${{ github.ref_name }}
+          body: "This is an automated release."
+          draft: false
+          prerelease: false
+          files: |
+            target/${{ matrix.toolchain }}/release/cache_cat${{ matrix.ext }}
 
   publish-docker:
     needs: build
     if: startsWith(github.ref, 'refs/tags/v')
     uses: ./.github/workflows/docker-build-publish.yaml
-
-  publish-artifacts:
-    needs: build
-    if: startsWith(github.ref, 'refs/tags/v')
-    uses: ./.github/workflows/github-release-publish.yaml
