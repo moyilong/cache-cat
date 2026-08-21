@@ -99,32 +99,6 @@ jobs:
           path: |
             target/${{ matrix.toolchain }}/release/cache_cat${{ matrix.ext }}
             target/${{ matrix.toolchain }}/release/cache_cat_ping${{ matrix.ext }}
-
-      #
-      # 整理 GitHub Release 文件名
-      #
-      - name: Prepare release files
-        if: startsWith(github.ref, 'refs/tags/v')
-        shell: bash
-        run: |
-          mkdir -p release
-
-          cp \
-            "target/${{ matrix.toolchain }}/release/cache_cat${{ matrix.ext }}" \
-            "release/cache_cat-${{ matrix.target }}${{ matrix.ext }}"
-
-          cp \
-            "target/${{ matrix.toolchain }}/release/cache_cat_ping${{ matrix.ext }}" \
-            "release/cache_cat_ping-${{ matrix.target }}${{ matrix.ext }}"
-
-          sha256sum \
-            "release/cache_cat-${{ matrix.target }}${{ matrix.ext }}" \
-            > "release/cache_cat-${{ matrix.target }}${{ matrix.ext }}.sha256"
-
-          sha256sum \
-            "release/cache_cat_ping-${{ matrix.target }}${{ matrix.ext }}" \
-            > "release/cache_cat_ping-${{ matrix.target }}${{ matrix.ext }}.sha256"
-
       #
       # 谁先 build 完，谁先上传
       #
@@ -138,7 +112,7 @@ jobs:
           draft: false
           prerelease: false
           files: |
-            release/*
+            target/${{ matrix.toolchain }}/release/cache_cat${{ matrix.ext }}
 
   publish-docker:
     needs: build
