@@ -36,10 +36,10 @@ jobs:
             os: windows-latest
             build: raw
 
-          - toolchain: aarch64-pc-windows-msvc
-            target: win-arm64
-            os: windows-latest-arm
-            build: raw
+          # - toolchain: aarch64-pc-windows-msvc
+          #   target: win-arm64
+          #   os: windows-latest-arm
+          #   build: raw
 
     runs-on: ${{ matrix.os }}
     permissions:
