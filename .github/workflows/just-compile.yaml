@@ -94,8 +94,10 @@ jobs:
 
   publish-docker:
     needs: build
+    if: startsWith(github.ref, 'refs/tags/v')
     uses: ./.github/workflows/docker-build-publish.yaml
 
   publish-artifacts:
     needs: build
+    if: startsWith(github.ref, 'refs/tags/v')
     uses: ./.github/workflows/github-release-publish.yaml
