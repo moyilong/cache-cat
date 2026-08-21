@@ -13,10 +13,10 @@ jobs:
             os: ubuntu-latest
             build: zig
 
-          - toolchain: riscv64gc-unknown-linux-musl
-            target: linux-riscv64
-            os: ubuntu-latest
-            build: zig
+          # - toolchain: riscv64gc-unknown-linux-musl
+          #   target: linux-riscv64
+          #   os: ubuntu-latest
+          #   build: zig
 
           - toolchain: aarch64-unknown-linux-musl
             target: linux-arm64
