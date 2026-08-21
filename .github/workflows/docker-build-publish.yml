@@ -8,6 +8,8 @@ on:
 jobs:
   build:
     uses: ./.github/workflows/just-compile.yaml
+    permissions:
+      contents: read
     
   push-docker:
     runs-on: ubuntu-latest
