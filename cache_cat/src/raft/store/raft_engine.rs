@@ -1,10 +1,9 @@
 use crate::error::{Error, Result};
-use crate::raft::types::raft_types::TypeConfig;
-use openraft::Entry;
 use raft_engine::{Config, Engine, MessageExt, ReadableSize};
 use serde::{Deserialize, Serialize};
 use std::path::Path;
 use std::sync::Arc;
+use crate::raft::types::raft_types::Entry;
 
 pub fn create_raft_engine<P: AsRef<Path>>(path: P) -> Result<Arc<Engine>> {
     //如果找不到路径就创建
@@ -31,7 +30,7 @@ pub fn create_raft_engine<P: AsRef<Path>>(path: P) -> Result<Arc<Engine>> {
 #[derive(Clone, Serialize, Deserialize)]
 pub struct MessageExtTyped;
 impl MessageExt for MessageExtTyped {
-    type Entry = Entry<TypeConfig>;
+    type Entry = Entry;
 
     fn index(e: &Self::Entry) -> u64 {
         e.log_id.index

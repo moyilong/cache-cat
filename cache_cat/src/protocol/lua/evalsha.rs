@@ -142,6 +142,7 @@ impl Command for EvalShaCommand {
             keys: params.keys,
             args: params.args,
             numkeys: params.numkeys,
+            proto: client.framed.codec().proto_version(),
         }));
         let result = server.app.write(operation, client.db_number).await?;
         Ok(result)

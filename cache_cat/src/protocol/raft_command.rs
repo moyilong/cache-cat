@@ -14,6 +14,7 @@ use crate::protocol::hash::hmget::HMGetCommand;
 use crate::protocol::hash::hset::HSetCommand;
 use crate::protocol::hash::hsetnx::HSetNxCommand;
 use crate::protocol::hash::hvals::HValsCommand;
+use crate::protocol::key::dbsize::DbsizeCommand;
 use crate::protocol::key::del::DelCommand;
 use crate::protocol::key::exists::ExistsCommand;
 use crate::protocol::key::expire::ExpireCommand;
@@ -67,6 +68,7 @@ use crate::protocol::string::setex::SetExCommand;
 use crate::protocol::string::setnx::SetNxCommand;
 use crate::protocol::zset::zadd::ZAddCommand;
 use crate::protocol::zset::zcard::ZCardCommand;
+use crate::protocol::zset::zincrby::ZIncrByCommand;
 use crate::protocol::zset::zpopmin::ZPopMinCommand;
 use crate::protocol::zset::zrange::ZRangeCommand;
 use crate::protocol::zset::zrangegetscore::ZRangeByScoreCommand;
@@ -201,7 +203,9 @@ impl RaftCommandFactory {
         factory.register("ZRANK", ZRankCommand);
         factory.register("ZPOPMIN", ZPopMinCommand);
         factory.register("UNLINK", UnlinkCommand);
-        factory.register("ZREVRank", ZRevRankCommand);
+        factory.register("ZREVRANK", ZRevRankCommand);
+        factory.register("ZINCRBY", ZIncrByCommand);
+        factory.register("DBSIZE", DbsizeCommand);
         factory
     }
 

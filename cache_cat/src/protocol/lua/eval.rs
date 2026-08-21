@@ -24,6 +24,15 @@ pub struct EvalParams {
     pub keys: Vec<Bytes>,
     /// Arguments
     pub args: Vec<Bytes>,
+    /// RESP protocol version of the calling client (2 or 3). Controls the
+    /// Lua -> RESP conversion of the script's return value, like Redis.
+    #[serde(default = "default_eval_proto")]
+    pub proto: u8,
+}
+
+#[inline]
+pub(crate) fn default_eval_proto() -> u8 {
+    2
 }
 
 impl Display for EvalParams {
@@ -50,6 +59,7 @@ impl EvalParams {
             numkeys,
             keys,
             args,
+            proto: default_eval_proto(),
         }
     }
 
@@ -130,7 +140,10 @@ impl Command for EvalCommand {
             vec.push(self.raft_request(items)?);
             return Ok(Value::SimpleString(String::from("QUEUED")));
         }
-        let operation = self.raft_request(items)?;
+        let mut operation = self.raft_request(items)?;
+        if let Operation::Redis(RedisEval(ref mut params)) = operation {
+            params.proto = client.framed.codec().proto_version();
+        }
         let result = server.app.write(operation, client.db_number).await?;
         Ok(result)
     }

@@ -11,7 +11,7 @@ use crate::protocol::key::renamenx::RenameNxParams;
 use crate::protocol::key::unlink::{UnlinkParams, UnlinkReq};
 use crate::protocol::set::spop::SPopReq;
 use crate::raft::types::core::mocha::cas::ComputeCommand;
-use crate::raft::types::core::mocha::mocha::{MyCache, MyValue, Update, UpdateType};
+use crate::raft::types::core::mocha::core::{MyCache, MyValue, Update, UpdateType};
 use crate::raft::types::core::response_value::Value;
 use crate::raft::types::entry::bae_operation::{BaseOperation, InsertReq};
 use crate::raft::types::entry::request::AtomicRequest;
@@ -156,6 +156,13 @@ impl MyCache {
 
     pub fn persist(&self, persist: PersistReq, update: &mut Update) -> Value {
         self.execute_compute(persist, update)
+    }
+    pub fn dbsize(&self, db_number: u16) -> Value {
+        let cache = match self.get_cache(db_number) {
+            Err(err) => return err,
+            Ok(cache) => &cache.mocha,
+        };
+        Value::Integer(cache.len() as i64)
     }
 
     pub fn expire(&self, param: ExpireReq, update: &mut Update) -> Value {

@@ -2,6 +2,7 @@ use crate::protocol::bitmap::bitfield::BitFieldReq;
 use crate::protocol::bitmap::setbit::SetBitReq;
 use crate::protocol::hash::hdel::HDelReq;
 use crate::protocol::hash::hincrby::HIncrReq;
+use crate::protocol::hash::hmset::HMSetReq;
 use crate::protocol::hash::hset::HSetReq;
 use crate::protocol::hash::hsetnx::HSetNxReq;
 use crate::protocol::key::del::DelReq;
@@ -28,6 +29,7 @@ use crate::protocol::string::incr::IncrReq;
 use crate::protocol::string::incrby::IncrByReq;
 use crate::protocol::string::set::SetReq;
 use crate::protocol::zset::zadd::ZAddReq;
+use crate::protocol::zset::zincrby::ZIncrByReq;
 use crate::protocol::zset::zpopmin::ZPopMinReq;
 use crate::protocol::zset::zrem::ZRemReq;
 use crate::raft::types::core::value_object::ValueObject;
@@ -70,6 +72,7 @@ pub enum BaseOperation {
     HIncr(HIncrReq),
     HDel(HDelReq),
     HSetNx(HSetNxReq),
+    HMSet(HMSetReq),
     // zset
     ZAdd(ZAddReq),
     ZRem(ZRemReq),
@@ -79,6 +82,7 @@ pub enum BaseOperation {
     SRem(SRemReq),
     SPop(SPopReq),
     Unlink(UnlinkReq),
+    ZIncrBy(ZIncrByReq),
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]

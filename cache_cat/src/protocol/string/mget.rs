@@ -2,7 +2,7 @@ use crate::error::{CacheCatError, ProtocolError};
 use crate::protocol::command::{Client, Command};
 use crate::protocol::raft_command::{RaftCommand, ReadRaftCommand};
 use crate::raft::network::redis_server::RedisServer;
-use crate::raft::types::core::mocha::mocha::MyValue;
+use crate::raft::types::core::mocha::core::MyValue;
 use crate::raft::types::core::mocha::read_command::MultiReadCommand;
 use crate::raft::types::core::response_value::Value;
 use crate::raft::types::core::value_object::ValueObject;
@@ -82,7 +82,7 @@ impl MultiReadCommand for MgetParams {
 
     fn execute(&self, values: Vec<Option<EntrySnapshot<MyValue>>>) -> Value {
         let mut results = Vec::with_capacity(values.len());
-
+        
         for value in values {
             results.push(match value {
                 None => Value::BulkString(None),

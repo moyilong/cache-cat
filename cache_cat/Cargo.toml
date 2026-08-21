@@ -20,9 +20,8 @@ opt-level = 0
 debug = true
 
 [dependencies]
-#openraft = { version = "0.9.21", features = ["type-alias"] }
-openraft = { git = "https://github.com/databendlabs/openraft", tag = "v0.10.0-alpha.13", features = ["type-alias", "serde"] }
-#openraft-multi = { git = "https://github.com/databendlabs/openraft", tag = "v0.10.0-alpha.13" }
+openraft = { version = "0.10.0-alpha.34", features = ["type-alias", "serde"] }
+#openraft = { git = "https://github.com/databendlabs/openraft", tag = "v0.10.0-alpha.13", features = ["type-alias", "serde"] }
 futures = "0.3.32"
 tracing = "0.1.44"
 serde = { version = "1.0.228", features = ["derive"] }
@@ -31,11 +30,12 @@ tokio-util = { version = "0.7.18", features = ["codec"] }
 bincode2 = "2.0.1"
 bytes = { version = "1.11.1", features = ["serde"] }
 async-trait = "0.1.89"
-mimalloc = "0.1.50"
+mimalloc = { version = "0.1.52", features = ["extended"] }
+libmimalloc-sys = "0.1.49"
 crossbeam-utils = "0.8.21"
 parking_lot = "0.12.5"
 raft-engine = { git = "https://github.com/nasuiyile/raft-engine-serde" }
-time = { version = "0.3", features = ["local-offset"] }
+#time = { version = "0.3", features = ["local-offset"] }
 tracing-subscriber = { version = "0.3.23", features = ["local-time"] }
 uuid = { version = "1.23.1", features = ["v4", "serde"] }
 #遥测相关默认不启用
@@ -54,6 +54,7 @@ rustls = "0.23"
 tokio-rustls = "0.26"
 rustls-pemfile = "2.2.0"
 rand = "0.8.5"
+serde_json = "1.0.149"
 [dev-dependencies]
 anyhow = "1.0.102"
 tempfile = "3.27.0"

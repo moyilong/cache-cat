@@ -14,7 +14,7 @@ use bytes::Bytes;
 use serde::{Deserialize, Serialize};
 use std::fmt::{Display, Formatter};
 use crate::mocha::EntrySnapshot;
-use crate::raft::types::core::mocha::mocha::MyValue;
+use crate::raft::types::core::mocha::core::MyValue;
 use crate::raft::types::core::mocha::read_command::ReadCommand;
 use crate::raft::types::core::value_object::ValueObject;
 

@@ -7,7 +7,6 @@ mod tests {
     use crate::raft::types::entry::bae_operation::BaseOperation;
     use crate::raft::types::entry::request::{Operation, Request};
     use crate::raft::types::raft_types::TypeConfig;
-    use crate::utils::now_ms;
     use bytes::Bytes;
     use openraft::RPCTypes::Vote;
     use openraft::error::Timeout;

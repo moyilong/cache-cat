@@ -4,7 +4,7 @@ use crate::protocol::command::{Client, Command};
 use crate::protocol::raft_command::RaftCommand;
 use crate::raft::network::redis_server::RedisServer;
 use crate::raft::types::core::mocha::cas::ComputeCommand;
-use crate::raft::types::core::mocha::mocha::MyValue;
+use crate::raft::types::core::mocha::core::MyValue;
 use crate::raft::types::core::response_value::Value;
 use crate::raft::types::core::value_object::ValueObject;
 use crate::raft::types::entry::bae_operation::BaseOperation;
@@ -456,8 +456,7 @@ fn write_bitfield(bytes: &mut BytesMut, encoding: BitFieldEncoding, offset: u64,
     }
 }
 
-/// 根据你的 Value 定义调整这里即可。
-///
+
 /// 假设 response_value::Value 中的 RESP Null 变体叫做 `Null`。
 /// 如果项目中叫做 Nil、NullBulkString 等，只需要改这一行。
 #[inline]

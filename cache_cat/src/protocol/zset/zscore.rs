@@ -3,7 +3,7 @@ use crate::mocha::EntrySnapshot;
 use crate::protocol::command::{Client, Command};
 use crate::protocol::raft_command::ReadRaftCommand;
 use crate::raft::network::redis_server::RedisServer;
-use crate::raft::types::core::mocha::mocha::MyValue;
+use crate::raft::types::core::mocha::core::MyValue;
 use crate::raft::types::core::mocha::read_command::ReadCommand;
 use crate::raft::types::core::response_value::Value;
 use crate::raft::types::core::value_object::ValueObject::ZSet;
@@ -30,16 +30,17 @@ impl ReadCommand for ZScoreParams {
     fn execute(&self, value: Option<EntrySnapshot<MyValue>>) -> Value {
         match value {
             // key 不存在
-            None => Value::BulkString(None),
+            None => Value::Null,
 
             Some(v) => match v.value.data {
                 ZSet(zset) => {
                     let zset = zset.lock();
 
                     match zset.zscore(&self.member) {
-                        Some(score) => Value::BulkString(Some(score.to_string().into())),
+                        // Double reply: RESP2 bulk string, RESP3 double.
+                        Some(score) => Value::Double(score),
 
-                        None => Value::BulkString(None),
+                        None => Value::Null,
                     }
                 }
 

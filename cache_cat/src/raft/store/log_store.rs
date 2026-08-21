@@ -1,6 +1,7 @@
 use crate::raft::store::raft_engine::MessageExtTyped;
-use crate::raft::types::raft_types::{GroupId, TypeConfig};
+use crate::raft::types::raft_types::{Entry, GroupId, TypeConfig};
 use meta::StoreMeta;
+use openraft::LogState;
 use openraft::OptionalSend;
 use openraft::RaftLogReader;
 use openraft::RaftTypeConfig;
@@ -11,7 +12,6 @@ use openraft::entry::RaftEntry;
 use openraft::storage::IOFlushed;
 use openraft::storage::RaftLogStorage;
 use openraft::type_config::TypeConfigExt;
-use openraft::{Entry, LogState};
 use raft_engine::{Engine, LogBatch};
 use std::fmt::{Debug, Formatter};
 use std::io;
@@ -163,7 +163,7 @@ impl RaftLogStorage<TypeConfig> for LogStore {
         I: IntoIterator<Item = EntryOf<TypeConfig>> + Send,
     {
         let mut batch = LogBatch::with_capacity(256);
-        let x: Vec<Entry<TypeConfig>> = entries.into_iter().collect();
+        let x: Vec<Entry> = entries.into_iter().collect();
         batch
             .add_entries::<MessageExtTyped>(self.group_id as u64, &x)
             .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;

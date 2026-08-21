@@ -5,7 +5,7 @@ use crate::protocol::set::sdiffstore::SDiffStoreParams;
 use crate::protocol::set::sinterstore::SInterStoreParams;
 use crate::protocol::set::srem::SRemReq;
 use crate::protocol::set::sunionstore::SUnionStoreParams;
-use crate::raft::types::core::mocha::mocha::{MyCache, Update};
+use crate::raft::types::core::mocha::core::{MyCache, Update};
 use crate::raft::types::core::response_value::Value;
 use crate::raft::types::core::value_object::ValueObject;
 use bytes::Bytes;

@@ -1,4 +1,4 @@
-use crate::raft::types::core::mocha::mocha::{MyCache, Update};
+use crate::raft::types::core::mocha::core::{MyCache, Update};
 use crate::raft::types::core::response_value::Value;
 use crate::raft::types::entry::bae_operation::BaseOperation;
 use crate::raft::types::entry::read_operation::ReadOperation;
@@ -46,6 +46,8 @@ pub fn read_request(
         ReadOperation::ZCount(param) => my_cache.execute_read(param, db_number, read_clock),
         ReadOperation::ZRank(param) => my_cache.execute_read(param, db_number, read_clock),
         ReadOperation::ZRevRank(param) => my_cache.execute_read(param, db_number, read_clock),
+        ReadOperation::DbSize(_param) => my_cache.dbsize(db_number),
+        ReadOperation::MemoryUsage(param) => my_cache.execute_read(param, db_number, read_clock),
     }
 }
 
@@ -94,6 +96,8 @@ pub fn base_request(
         BaseOperation::SPop(param) => my_cache.s_pop(param, update),
         BaseOperation::ZPopMin(param) => my_cache.z_pop_min(param, update),
         BaseOperation::Unlink(param) => my_cache.unlink(param, update),
+        BaseOperation::ZIncrBy(param) => my_cache.z_incr_by(param, update),
+        BaseOperation::HMSet(param) => my_cache.h_mset(param, update),
     }
 }
 
@@ -127,7 +131,14 @@ pub fn do_request(
                 };
                 my_cache
                     .lua_env
-                    .exec_lua(my_cache, &param.script, &param.keys, &param.args, update)
+                    .exec_lua(
+                        my_cache,
+                        &param.script,
+                        &param.keys,
+                        &param.args,
+                        update,
+                        param.proto,
+                    )
                     .unwrap_or_else(|err| err.into())
             }
             RedisOperation::RedisExec(param) => {

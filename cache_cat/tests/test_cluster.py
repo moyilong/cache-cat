@@ -8,7 +8,7 @@ r = redis.Redis(
     port=6379,
     decode_responses=True
 )
-
+r.flushdb()
 print()
 
 r.set('test0', 'test0')
@@ -200,3 +200,11 @@ print(r.get("test28"))
 
 r.zadd("my_zset", {"a": 1, "b": 2, "c": 3})
 print(r.zrevrank("my_zset", "a"))
+print(r.dbsize())
+
+
+r.set("test30", "test")
+print(r.memory_usage("test30"))
+print(r.memory_stats())
+
+print(r.memory_purge())

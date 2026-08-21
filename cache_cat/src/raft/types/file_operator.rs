@@ -1,5 +1,4 @@
-use crate::raft::types::raft_types::TypeConfig;
-use openraft::SnapshotMeta;
+use crate::raft::types::raft_types::SnapshotMeta;
 use serde::{Deserialize, Serialize};
 use std::error::Error;
 use std::path::{Path, PathBuf};
@@ -68,11 +67,11 @@ impl FileOperator {
         let uuid = send_file_once(addr, hardlink_path, self.uuid).await?;
         Ok(uuid)
     }
-    pub async fn load_meta_data(&self) -> Result<Option<SnapshotMeta<TypeConfig>>, io::Error> {
+    pub async fn load_meta_data(&self) -> Result<Option<SnapshotMeta>, io::Error> {
         load_meta_from_path(self.get_hard_link_buf()).await
     }
 }
-pub async fn load_meta_from_path<P>(path: P) -> Result<Option<SnapshotMeta<TypeConfig>>, io::Error>
+pub async fn load_meta_from_path<P>(path: P) -> Result<Option<SnapshotMeta>, io::Error>
 where
     P: AsRef<Path>,
 {
@@ -100,7 +99,7 @@ where
     let meta_len = reader.read_u32().await? as usize;
     let mut meta_buf = vec![0u8; meta_len];
     reader.read_exact(&mut meta_buf).await?;
-    let meta: SnapshotMeta<TypeConfig> = bincode2::deserialize(&meta_buf)
+    let meta: SnapshotMeta = bincode2::deserialize(&meta_buf)
         .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
 
     Ok(Some(meta))

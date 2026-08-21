@@ -15,16 +15,7 @@ pub mod lua_env;
 pub mod pub_sub;
 mod raft_command;
 pub mod sentinel;
-mod server;
-
-mod prelude;
-
-/// Current format version for all encoded types (stored in high 4 bits of flags)
-pub const CURRENT_VERSION: u8 = 1;
-
-/// Data type constants (stored in low 4 bits of flags)
-pub const TYPE_STRING: u8 = 0x01;
-pub const TYPE_HASH: u8 = 0x02;
+pub mod server;
 
 /// Special value indicating no expiration (0 means never expire)
 pub const NO_EXPIRATION: u64 = 0;

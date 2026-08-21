@@ -1,4 +1,4 @@
-pub mod config;
+pub mod cfg;
 pub mod error;
 pub mod node;
 pub mod protocol;

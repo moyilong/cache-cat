@@ -1,165 +1,94 @@
-# Cache-Cat
+# cache-cat
 
 <div align="center">
 <a href="https://github.com/nasuiyile/cache-cat/blob/master/README.md">English</a> ｜
 <a href="https://github.com/nasuiyile/cache-cat/blob/master/README_zh.md">简体中文</a> |
-<a href="https://nasuiyile.github.io/cache-cat-website">Official Website</a> 
+<a href="https://nasuiyile.github.io/cache-cat-website">Official Website</a>
 </div>
+
 
 ## Introduction
 
-Cache-Cat is a high-performance key-value cache library that leverages the Raft consensus protocol to provide both high availability and strong consistency.
+cache-cat is a high-performance key-value caching library that uses the Raft consensus protocol to provide both high availability and strong data consistency.
 
-The goal of Cache-Cat is to build an extremely high-performance cache framework with disaster recovery capabilities based on Raft. Unlike traditional cache systems such as Redis and Memcached, Cache-Cat is designed to ensure that committed data is never lost.
+cache-cat aims to build an extremely high-performance, Raft-based, fault-tolerant caching framework. Compared with caching systems such as Redis and Memcached, cache-cat is designed to ensure that committed data is not lost. The project with the most similar positioning is:
 
-In terms of positioning, the most comparable project is [RedisRaft](https://github.com/RedisLabs/redisraft?utm_source=chatgpt.com), which enables Redis instances to form a strongly consistent Raft cluster. However, RedisRaft is primarily a laboratory and research project.
+[RedisLabs/redisraft: A Redis Module that makes it possible to create a consistent Raft cluster from multiple Redis instances.](https://github.com/RedisLabs/redisraft)
 
-> Even when Redis cluster solutions are used, Redis can still lose data. Redis clustering primarily addresses availability rather than data consistency.
+However, RedisRaft is only a lab project.
 
-Compared with systems such as etcd, Apache ZooKeeper, Consul, and TiKV, which also rely on consensus algorithms and provide reliable data storage, Cache-Cat offers significantly lower latency and higher throughput. Under the same environment and default configurations, Cache-Cat can achieve approximately 500,000 writes per second, whereas TiKV achieves around 200,000 writes per second.
+> Even when using Redis clustering strategies, Redis may still lose data. Redis clustering primarily addresses availability rather than strong data consistency.
 
-Furthermore, these systems were not originally designed as caching solutions and therefore lack many cache-oriented features such as:
+Compared with more widely known service-discovery and coordination systems such as etcd, ZooKeeper, and Consul, cache-cat also uses a consensus algorithm and is designed to provide reliable data storage.
 
-- LRU (Least Recently Used) eviction
-- LFU (Least Frequently Used) eviction
-- Maximum memory usage limits
+However, under the same environment and with default configurations, the performance and latency of these systems still cannot match cache-cat. For example, cache-cat can achieve approximately 500k writes per second, while TiKV achieves around 200k writes per second. In addition, these middleware systems were not originally designed for caching scenarios, so they lack many features commonly required by cache systems, such as LRU and LFU eviction policies and maximum memory usage limits.
 
 ## Features
 
-For many small and medium-sized companies, introducing numerous infrastructure components can increase operational complexity. Cache-Cat aims to provide a unified solution for multiple common use cases.
+For many small companies, you may simply want to build a highly available application without introducing a large number of middleware services.
 
-In theory, Cache-Cat can be used as:
+In theory, cache-cat can be used as:
 
-### Key-Value Database
+- **A key-value database:** Similar to TiKV, it can store critical data that must not be lost.
+- **Service discovery / configuration center:** Similar in positioning to Consul and ZooKeeper, it can be used as a service registry and configuration center. Client-side adaptation is required.
+- **A cache:** Similar in positioning to Redis, Dragonfly, and Valkey. Most cache workloads are read-heavy, and cache-cat's read performance is designed to be competitive with these systems. For writes, according to one survey, many systems have a read/write ratio of approximately 95:5, and caching itself cannot accelerate write operations. cache-cat can still provide 500k+ write operations per second, which is sufficient for the vast majority of use cases.
+- **Distributed locks:** Similar to ZooKeeper and etcd. Unlike Redis-based distributed locks, Redis distributed locking has relatively more caveats and potential issues, even when using Redlock: [Is Redlock safe?](https://antirez.com/news/101).
 
-Similar to TiKV, Cache-Cat can store critical business data that must not be lost.
+**Use cases:** You should consider cache-cat when you need to ensure that data is not lost. For example, you may want to keep all user data in memory for long-term storage and fast reads. You may need a distributed lock and do not want that lock to become invalid because of a node failure. You may also want to store critical configuration data and ensure that it is not lost when a node fails.
 
-### Service Discovery and Configuration Center
+For many other scenarios, you can still choose traditional cache systems such as Redis. For example, if you simply want to preload frequently accessed configuration data that is originally stored in a database, a traditional cache may be perfectly suitable.
 
-Similar to Consul and Apache ZooKeeper, Cache-Cat can serve as a service registry and configuration management platform, provided suitable client integrations are implemented.
-
-### Distributed Cache
-
-Similar to Redis, Dragonfly, and Valkey.
-
-Caching workloads are predominantly read-heavy. At the read layer, Cache-Cat delivers performance comparable to modern in-memory caches. For write operations, Cache-Cat still provides over **150,000 operations per second**.
-
-According to industry surveys, most production systems exhibit read-to-write ratios around **95:5**, and caches themselves cannot fundamentally accelerate database writes. Therefore, Cache-Cat's write throughput is sufficient for the vast majority of applications.
-
-### Distributed Locking
-
-Cache-Cat can also be used for distributed locking, similar to ZooKeeper and etcd.
-
-Compared with Redis-based distributed locks, Cache-Cat provides stronger consistency guarantees. Redis distributed locking solutions have well-known limitations and corner cases, even when using algorithms such as Redlock.
-
-For additional discussion, see:
-
-[Is Redlock safe?](https://antirez.com/news/101?utm_source=chatgpt.com)
-
-Comprehensive benchmark results will be published once the project reaches feature completeness.
-
-------
+A complete benchmark section will be added after cache-cat's functionality becomes more mature.
 
 ## Consistency Model
 
-A frequently discussed topic is the consistency between a cache and a database during dual-write operations.
+> A commonly discussed consistency problem concerns dual-write consistency between a cache and a database.
+>
+> [In-depth | Ctrip's Practices for Eventual-Consistency and Strong-Consistency Caching](https://mp.weixin.qq.com/s/E-chAZyHtaZOdA19mW59-Q)
+>
+> This is different from the consistency model of the database itself. The consistency discussed below refers to the database's own consistency model, rather than dual-write consistency between a database and a cache.
+>
+> In simple terms, if the latest value written by a write operation can be read immediately, the system can be regarded as strongly consistent. Externally, the system exposes the semantics of a single state machine.
+>
+> If it takes some time before the latest written value becomes visible to reads, the system can be regarded as eventually consistent.
 
-For example:
+## Q&A
 
-[Ctrip's Strong and Eventual Consistency Cache Practice](https://mp.weixin.qq.com/s/E-chAZyHtaZOdA19mW59-Q?utm_source=chatgpt.com)
+You may be wondering how cache-cat differs from or relates to the following systems. The questions below explain these differences one by one.
 
-However, cache-database consistency is a different problem from the consistency model of a database itself.
+### Q: What is the difference between cache-cat and TiKV?
 
-The consistency discussed in this document refers to the database's internal consistency guarantees, not cache-database synchronization strategies.
+TiKV is a database implementation that uses a Raft engine for log replication and RocksDB as its storage layer. For performance reasons, cache-cat does not persist state-machine data to disk.
 
-In simple terms:
+---
 
-- **Strong Consistency**: Once a write operation succeeds, all subsequent reads immediately observe the latest value. Externally, the system behaves as a single deterministic state machine.
-- **Eventual Consistency**: Updates may require some time to propagate before all readers observe the latest value.
+### Q: Can Redis really lose data, even when using clustering strategies?
 
-Cache-Cat provides **strong consistency** through the Raft consensus protocol.
+Yes. Neither Redis Cluster nor Sentinel uses a consensus algorithm for replication.
 
-------
+The typical processing order is that the primary node replies to the request first and then synchronizes the data to replica nodes. If the primary crashes after replying to the request but before replicating the write to a replica, that write may be permanently lost after a new primary is elected.
 
-# FAQ
+Redis clusters can also encounter split-brain scenarios.
 
-## What is the difference between Cache-Cat and TiKV?
+---
 
-**Answer:**
+### Q: Raft requires data to be written to disk and replicated to follower nodes before a request can return. Doesn't this conflict with the efficiency goals of a cache?
 
-TiKV is a distributed database that uses Raft for replication, with persistent storage engines underneath. Data is designed to be stored durably on disk.
+More precisely, Raft persists operation logs. Raft itself does not dictate where the state-machine data must be stored.
 
-Cache-Cat takes a different approach. To maximize performance, the state machine data itself resides entirely in memory and is not persisted as a database storage layer.
+In cache-cat, state-machine data is stored entirely in memory using hash maps and other data structures. If you want an analogy, the data that needs to be persisted can be compared to Redis AOF logs.
 
-As a result:
+For reference, ZooKeeper's entire ZNode tree and Consul's key-value data are stored in memory, while etcd persists its data to disk.
 
-- TiKV prioritizes durable persistent storage.
-- Cache-Cat prioritizes ultra-fast in-memory access while maintaining strong consistency through replicated Raft logs.
+For a cache system, synchronization and disk flushing inevitably increase write latency compared with an otherwise equivalent pure in-memory cache. However, read operations do not require any additional disk I/O.
 
-------
+We believe that cache systems care more about read latency than write latency, and we believe this trade-off is worthwhile: slightly higher write latency in exchange for preventing committed data from being lost.
 
-## Can Redis really lose data, even when running in a cluster?
-
-**Answer:**
-
-Yes.
-
-Neither Redis Cluster nor Redis Sentinel relies on a consensus protocol.
-
-In a typical Redis replication setup:
-
-1. The primary node processes a write request.
-2. The primary replies to the client.
-3. The primary asynchronously replicates the update to replicas.
-
-If the primary crashes after acknowledging the write but before replication completes, and a replica is promoted to become the new primary, the acknowledged write can be permanently lost.
-
-Redis clusters may also experience split-brain scenarios under certain failure conditions.
-
-------
-
-## Doesn't Raft require disk writes and replication before responding, making it unsuitable for a cache?
-
-**Answer:**
-
-Not exactly.
-
-Raft requires **log entries** to be persisted and replicated according to the protocol, but it does not require the state machine data itself to be stored on disk.
-
-In Cache-Cat:
-
-- Raft logs are persisted for durability.
-- State machine data is stored entirely in memory using structures such as hash maps and other optimized in-memory data structures.
-
-A useful comparison is Redis AOF:
-
-- The persisted Raft log is analogous to Redis AOF logs.
-- The actual data structures remain memory-resident.
-
-Several widely used Raft-based systems follow a similar design philosophy:
-
-- ZooKeeper stores the entire ZNode tree in memory.
-- Consul stores its key-value data in memory.
-- etcd, by contrast, persists state machine data to disk.
-
-For caching workloads, replication and log persistence inevitably increase write latency compared to a pure in-memory cache. This tradeoff is unavoidable.
-
-However:
-
-- Read operations require no additional disk access.
-- Read performance remains extremely fast.
-- The cost is slightly higher write latency.
-- The benefit is that committed data is not lost.
-
-We believe that cache systems are typically more sensitive to read latency than write latency, making this tradeoff worthwhile.
-
-------
-
-## License
+---
 
 This project includes code derived from:
 
-- [coredb](https://github.com/lichuang/coredb?utm_source=chatgpt.com)
-- [rockraft](https://github.com/lichuang/rockraft?utm_source=chatgpt.com)
+- https://github.com/lichuang/coredb
+- https://github.com/lichuang/rockraft
 
-These components are licensed under the **Apache License 2.0**.
+Licensed under the Apache License 2.0.

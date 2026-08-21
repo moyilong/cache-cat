@@ -2,7 +2,7 @@ use crate::error::{CacheCatError, ProtocolError};
 use crate::protocol::command::{Client, Command};
 use crate::protocol::raft_command::{RaftCommand, ReadRaftCommand};
 use crate::raft::network::redis_server::RedisServer;
-use crate::raft::types::core::mocha::mocha::MyValue;
+use crate::raft::types::core::mocha::core::MyValue;
 use crate::raft::types::core::mocha::read_command::ReadCommand;
 use crate::raft::types::core::response_value::Value;
 use crate::raft::types::core::value_object::ValueObject;
@@ -37,17 +37,18 @@ impl ReadCommand for SMembersParams {
 
     fn execute(&self, value: Option<EntrySnapshot<MyValue>>) -> Value {
         match value {
-            None => Value::Array(Some(vec![])),
+            // Missing key: empty set reply (RESP2 *0, RESP3 ~0), like Redis.
+            None => Value::Set(Vec::new()),
             Some(v) => match v.value.data {
                 ValueObject::Set(set) => {
                     let guard = set.lock();
 
-                    let array = guard
+                    let members = guard
                         .iter()
                         .map(|v| Value::BulkString(Some(v.clone())))
                         .collect::<Vec<_>>();
 
-                    Value::Array(Some(array))
+                    Value::Set(members)
                 }
                 _ => ProtocolError::WrongType.into(),
             },

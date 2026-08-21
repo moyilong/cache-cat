@@ -1,8 +1,7 @@
 use crate::raft::types::core::response_value::Value;
 use crate::raft::types::file_operator::FileOperator;
-use crate::raft::types::raft_types::{Node, TypeConfig};
+use crate::raft::types::raft_types::{Node, SnapshotMeta, TypeConfig};
 use bytes::Bytes;
-use openraft::SnapshotMeta;
 use openraft::alias::VoteOf;
 use openraft::raft::{AppendEntriesRequest, VoteRequest};
 use serde::{Deserialize, Serialize};
@@ -61,7 +60,7 @@ pub struct VoteReq {
 #[derive(Serialize, Deserialize, Debug, PartialEq)]
 pub struct InstallFullSnapshotReq {
     pub vote: VoteOf<TypeConfig>,
-    pub snapshot_meta: SnapshotMeta<TypeConfig>,
+    pub snapshot_meta: SnapshotMeta,
     pub snapshot: FileOperator,
 }
 

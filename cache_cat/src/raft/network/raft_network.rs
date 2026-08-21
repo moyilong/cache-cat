@@ -1,6 +1,7 @@
 use crate::raft::network::client::RpcMultiClient;
 use crate::raft::network::model::{AppendEntriesReq, InstallFullSnapshotReq, VoteReq};
-use crate::raft::types::raft_types::{Node, NodeId, TypeConfig};
+use crate::raft::types::file_operator::FileOperator;
+use crate::raft::types::raft_types::{Node, NodeId, Snapshot, TypeConfig};
 use crate::utils::now_ms;
 use openraft::RPCTypes::{InstallSnapshot, Vote};
 use openraft::alias::VoteOf;
@@ -9,7 +10,7 @@ use openraft::network::{Backoff, RPCOption};
 use openraft::raft::{
     AppendEntriesRequest, AppendEntriesResponse, SnapshotResponse, VoteRequest, VoteResponse,
 };
-use openraft::{OptionalSend, RaftNetworkFactory, RaftNetworkV2, Snapshot};
+use openraft::{OptionalSend, RaftNetworkFactory, RaftNetworkV2};
 use parking_lot::RwLock;
 use std::sync::Arc;
 use std::time::Duration;
@@ -82,6 +83,8 @@ impl TcpNetwork {
 
 //openraft会自动调用这个方法，这里只需要实现网络层的rpc调用
 impl RaftNetworkV2<TypeConfig> for TcpNetwork {
+    type SnapshotData = FileOperator;
+
     //只有主节点会调用这个方法，主节点发起心跳时也会调用这个方法
     async fn append_entries(
         &mut self,
@@ -138,7 +141,7 @@ impl RaftNetworkV2<TypeConfig> for TcpNetwork {
     async fn full_snapshot(
         &mut self,
         vote: VoteOf<TypeConfig>,
-        snapshot: Snapshot<TypeConfig>,
+        snapshot: Snapshot,
         cancel: impl Future<Output = ReplicationClosed> + OptionalSend + 'static,
         option: RPCOption,
     ) -> Result<SnapshotResponse<TypeConfig>, StreamingError<TypeConfig>> {
@@ -195,7 +198,7 @@ impl RaftNetworkV2<TypeConfig> for TcpNetwork {
             .await?;
         Ok(result)
     }
-    fn backoff(&self) -> Backoff {
-        Backoff::new(std::iter::repeat(Duration::from_millis(1500)))
+    fn backoff(&self) -> Option<Backoff> {
+        Some(Backoff::new(std::iter::repeat(Duration::from_millis(1500))))
     }
 }

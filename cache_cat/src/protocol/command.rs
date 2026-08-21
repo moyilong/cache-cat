@@ -6,7 +6,7 @@ use crate::protocol::bitmap::bitpos::BitPosCommand;
 use crate::protocol::bitmap::getbit::GetBitCommand;
 use crate::protocol::bitmap::setbit::SetBitCommand;
 use crate::protocol::connection::auth::AuthCommand;
-use crate::protocol::connection::client::client::ClientCommand;
+use crate::protocol::connection::client::core::ClientCommand;
 use crate::protocol::connection::echo::EchoCommand;
 use crate::protocol::connection::hello::HelloCommand;
 use crate::protocol::connection::ping::PingCommand;
@@ -23,6 +23,7 @@ use crate::protocol::hash::hmget::HMGetCommand;
 use crate::protocol::hash::hset::HSetCommand;
 use crate::protocol::hash::hsetnx::HSetNxCommand;
 use crate::protocol::hash::hvals::HValsCommand;
+use crate::protocol::key::dbsize::DbsizeCommand;
 use crate::protocol::key::del::DelCommand;
 use crate::protocol::key::exists::ExistsCommand;
 use crate::protocol::key::expire::ExpireCommand;
@@ -56,8 +57,9 @@ use crate::protocol::pub_sub::pubsub::PubSubCommand;
 use crate::protocol::pub_sub::punsubscribe::PunsubscribeCommand;
 use crate::protocol::pub_sub::subscribe::SubscribeCommand;
 use crate::protocol::pub_sub::unsubscribe::UnsubscribeCommand;
-use crate::protocol::sentinel::sentinel::SentinelCommand;
+use crate::protocol::sentinel::core::SentinelCommand;
 use crate::protocol::server::bgsave::BgsaveCommand;
+use crate::protocol::server::memory::core::MemoryCommand;
 use crate::protocol::server::save::SaveCommand;
 use crate::protocol::server::shutdown::ShutdownCommand;
 use crate::protocol::server::time::TimeCommand;
@@ -93,11 +95,13 @@ use crate::protocol::transaction::exec::ExecCommand;
 use crate::protocol::transaction::multi::MultiCommand;
 use crate::protocol::zset::zadd::ZAddCommand;
 use crate::protocol::zset::zcard::ZCardCommand;
+use crate::protocol::zset::zincrby::ZIncrByCommand;
 use crate::protocol::zset::zpopmin::ZPopMinCommand;
 use crate::protocol::zset::zrange::ZRangeCommand;
 use crate::protocol::zset::zrangegetscore::ZRangeByScoreCommand;
 use crate::protocol::zset::zrank::ZRankCommand;
 use crate::protocol::zset::zrem::ZRemCommand;
+use crate::protocol::zset::zrevrank::ZRevRankCommand;
 use crate::protocol::zset::zscore::ZScoreCommand;
 use crate::raft::network::connection::Connection;
 use crate::raft::network::redis_server::{RedisServer, RespCodec};
@@ -114,7 +118,6 @@ use tokio::select;
 use tokio::sync::watch;
 use tokio_util::codec::Framed;
 use tracing::{error, warn};
-use crate::protocol::zset::zrevrank::ZRevRankCommand;
 
 #[async_trait]
 pub trait Command: Send + Sync {
@@ -277,6 +280,7 @@ impl CommandFactory {
         factory.register("AUTH", AuthCommand);
         factory.register("CLIENT", ClientCommand::new());
         factory.register("HELLO", HelloCommand);
+        factory.register("MEMORY", MemoryCommand::new());
         // Register data commands
         factory.register("GET", GetCommand);
         factory.register("SET", SetCommand);
@@ -306,6 +310,7 @@ impl CommandFactory {
         factory.register("FLUSHALL", FlushAllCommand);
         factory.register("KEYS", KeysCommand);
         factory.register("UNLINK", UnlinkCommand);
+        factory.register("DBSIZE", DbsizeCommand);
         // List commands
         factory.register("LPUSH", LPushCommand);
         factory.register("RPUSH", RPushCommand);
@@ -352,7 +357,8 @@ impl CommandFactory {
         factory.register("ZSCORE", ZScoreCommand);
         factory.register("ZRANK", ZRankCommand);
         factory.register("ZPOPMIN", ZPopMinCommand);
-        factory.register("ZREVRank", ZRevRankCommand);
+        factory.register("ZREVRANK", ZRevRankCommand);
+        factory.register("ZINCRBY", ZIncrByCommand);
         // Bitmap commands
         factory.register("SETBIT", SetBitCommand);
         factory.register("GETBIT", GetBitCommand);
@@ -406,6 +412,17 @@ impl CommandFactory {
         }
     }
 
+    /// Commands that are always allowed while a client is in subscribe mode.
+    const SUBSCRIBE_MODE_COMMANDS: [&'static str; 7] = [
+        "SUBSCRIBE",
+        "UNSUBSCRIBE",
+        "PSUBSCRIBE",
+        "PUNSUBSCRIBE",
+        "PING",
+        "QUIT",
+        "RESET",
+    ];
+
     /// Handle a command in blocking context (checking if it's allowed)
     async fn handle_command_in_blocking_context(
         &self,
@@ -414,6 +431,28 @@ impl CommandFactory {
         server: &RedisServer,
         block_cmd: &dyn BlockCommand,
     ) -> Result<(), CacheCatError> {
+        // RESP3 semantics: a subscribed client may issue *any* command, not
+        // just the subscribe-family ones. RESP2 clients stay restricted.
+        if client.framed.codec().proto_version() == 3
+            && !Self::SUBSCRIBE_MODE_COMMANDS.contains(&parsed.name.as_str())
+        {
+            if let Some(cmd) = self.commands.get(&parsed.name) {
+                let resp = match cmd.execute(client, &parsed.items, server).await {
+                    Ok(v) => v,
+                    Err(e) => {
+                        warn!("Command '{}' error: {}", parsed.name, e);
+                        Value::from(e)
+                    }
+                };
+                client.framed.send(resp).await?;
+                return Ok(());
+            }
+
+            let resp = Value::from(ProtocolError::UnknownCommand(parsed.name));
+            client.framed.send(resp).await?;
+            return Ok(());
+        }
+
         let resp = block_cmd
             .execute_during_block(client, &parsed, server)
             .await?;

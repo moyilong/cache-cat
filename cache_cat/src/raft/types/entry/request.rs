@@ -118,6 +118,8 @@ impl fmt::Display for Request {
                 ReadOperation::ZCount(req) => write!(f, "ZCount: {}", req),
                 ReadOperation::ZRank(req) => write!(f, "ZRank: {}", req),
                 ReadOperation::ZRevRank(req) => write!(f, "ZRevRank: {}", req),
+                ReadOperation::DbSize(req) => write!(f, "DbSize: {}", req),
+                ReadOperation::MemoryUsage(req) => write!(f, "MemoryUsage: {}", req),
             },
             Operation::Base(op) => match op {
                 BaseOperation::Empty => write!(f, "None"),
@@ -154,6 +156,8 @@ impl fmt::Display for Request {
                 BaseOperation::BitField(req) => write!(f, "BitField: {}", req),
                 BaseOperation::ZPopMin(req) => write!(f, "ZPopMin: {}", req),
                 BaseOperation::Unlink(req) => write!(f, "Unlink: {}", req),
+                BaseOperation::ZIncrBy(req) => write!(f, "ZIncrBy: {}", req),
+                BaseOperation::HMSet(req) => write!(f, "HMSet: {}", req),
             },
             Operation::Redis(op) => match op {
                 RedisOperation::RedisSet(req) => write!(f, "RedisSet: {}", req),

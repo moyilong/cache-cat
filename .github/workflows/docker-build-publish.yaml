@@ -4,8 +4,14 @@ on:
   workflow_call:
 
 jobs:
+  build:
+    uses: ./.github/workflows/just-compile.yaml
   push-docker:
     runs-on: ubuntu-latest
+    needs: build
+    permissions:
+      contents: read
+      packages: write
 
     steps:
       - name: Checkout code
@@ -33,16 +39,16 @@ jobs:
           if [[ "${GITHUB_REF}" == "refs/heads/master" ]]; then
             {
               echo "tags<<EOF"
-              echo "ghcr.io/${{ github.repository_owner }}/${{ github.repository }}:nighty"
+              echo "ghcr.io/${{ github.repository }}:nighty"
               echo "EOF"
             } >> "$GITHUB_OUTPUT"
 
-          elif [[ "${GITHUB_REF}" =~ ^refs/tags/(v[0-9]+\.[0-9]+\.[0-9]+)$ ]]; then
+          elif [[ "${GITHUB_REF}" =~ ^refs/tags/(v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?)$ ]]; then
             VERSION="${BASH_REMATCH[1]}"
             {
               echo "tags<<EOF"
-              echo "ghcr.io/${{ github.repository_owner }}/${{ github.repository }}:latest"
-              echo "ghcr.io/${{ github.repository_owner }}/${{ github.repository }}:${VERSION}"
+              echo "ghcr.io/${{ github.repository }}:latest"
+              echo "ghcr.io/${{ github.repository }}:${VERSION}"
               echo "EOF"
             } >> "$GITHUB_OUTPUT"
 

@@ -1,4 +1,4 @@
-use crate::config::config::{Config, load_config};
+use crate::cfg::config::{Config, load_config};
 use clap::Parser;
 use std::path::PathBuf;
 

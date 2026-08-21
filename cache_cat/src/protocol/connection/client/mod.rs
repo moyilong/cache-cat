@@ -1,7 +1,7 @@
-pub mod client;
+pub mod core;
 mod info;
 
 mod setinfo;
 mod setname;
 
-// TODO: change sub mod name of `client`
+

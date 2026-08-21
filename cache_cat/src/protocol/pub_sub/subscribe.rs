@@ -115,17 +115,27 @@ impl BlockCommand for SubscribeCommand {
             Ok(result)
         } else if cmd.name == "PING" {
             let params = PingParam::parse(&cmd.items)?;
-            return Ok(Value::Array(Some(vec![
-                Value::SimpleString("PONG".to_string()),
-                Value::BulkString(params.message),
-            ])));
+            // Redis: RESP2 clients in subscribe mode receive a 2-element
+            // array ["pong", <message or empty>]; RESP3 clients get the
+            // normal PING reply.
+            if client.framed.codec().proto_version() == 2 {
+                return Ok(Value::Array(Some(vec![
+                    Value::BulkString(Some(Bytes::from_static(b"pong"))),
+                    Value::BulkString(Some(params.message.unwrap_or_default())),
+                ])));
+            }
+            return Ok(match params.message {
+                None => Value::SimpleString("PONG".to_string()),
+                Some(message) => Value::BulkString(Some(message)),
+            });
         } else if cmd.name == "QUIT" {
             client.closed = true;
             return Ok(Value::ok());
         } else {
-            let resp = Value::error(
-                "ERR only (P)SUBSCRIBE / (P)UNSUBSCRIBE / PING / QUIT allowed in this context",
-            );
+            let resp = Value::error(format!(
+                "ERR Can't execute '{}': only (P|S)SUBSCRIBE / (P|S)UNSUBSCRIBE / PING / QUIT / RESET are allowed in this context",
+                cmd.name.to_lowercase(),
+            ));
             return Ok(resp);
         }
     }
