@@ -177,7 +177,7 @@ impl ComputeCommand for LTrimReq {
                     let stop = stop as usize;
 
                     // Remove elements from the end first to avoid index shifting issues
-                    let new_len = stop - start + 1;
+                    let _new_len = stop - start + 1;
                     list.truncate(stop + 1); // Remove elements after stop
 
                     // Remove elements before start

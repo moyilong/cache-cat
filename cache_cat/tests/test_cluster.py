@@ -8,7 +8,7 @@ r = redis.Redis(
     port=6379,
     decode_responses=True
 )
-
+r.flushdb()
 print()
 
 r.set('test0', 'test0')

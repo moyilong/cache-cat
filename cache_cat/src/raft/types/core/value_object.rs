@@ -1,9 +1,7 @@
-use crate::protocol::zset::zadd::ZAddReq;
 use bytes::Bytes;
-use ordered_float::OrderedFloat;
 use parking_lot::Mutex;
 use serde::{Deserialize, Serialize};
-use std::collections::{BTreeSet, HashMap, HashSet, VecDeque};
+use std::collections::{HashMap, HashSet, VecDeque};
 use std::sync::Arc;
 use crate::raft::types::core::size_estimate::{estimate_hash_usage, estimate_list_usage, estimate_set_usage, estimate_zset_usage, estimated_bytes_heap_usage};
 use crate::raft::types::core::sorted_set::SortedSet;

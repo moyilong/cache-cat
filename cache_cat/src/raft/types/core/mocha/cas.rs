@@ -53,7 +53,7 @@ impl MyCache {
             }
             Some(v) => v,
         };
-        let mut return_value;
+        let return_value;
 
         match update.update_type {
             UpdateType::None => {

@@ -8,7 +8,7 @@ use std::sync::atomic::{AtomicU32, Ordering};
 use tokio::io::AsyncWriteExt;
 use tokio::net::TcpStream;
 use tokio::sync::{RwLock, mpsc, oneshot};
-use tokio_util::codec::{Framed, LengthDelimitedCodec};
+use tokio_util::codec::Framed;
 use crate::raft::types::entry::request::Request;
 use crate::raft::types::raft_types::TypeConfig;
 
@@ -30,7 +30,7 @@ impl PipelineClient {
         // 发送协议标识位 2
         stream.write_all(&[2u8]).await?;
 
-        let framed = Framed::new(stream, LengthDelimitedCodec::new());
+        let framed = Framed::new(stream, crate::raft::network::new_length_codec());
         let (mut writer, mut reader) = framed.split();
 
         // 请求队列：一个请求对应一个响应

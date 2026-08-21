@@ -16,7 +16,6 @@ use futures::TryStreamExt;
 use openraft::EntryPayload;
 use openraft::OptionalSend;
 use openraft::RaftSnapshotBuilder;
-use openraft::alias::SnapshotOf;
 use openraft::storage::EntryResponder;
 use openraft::storage::RaftStateMachine;
 use std::io;

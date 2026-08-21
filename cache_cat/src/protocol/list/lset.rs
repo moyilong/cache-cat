@@ -13,7 +13,7 @@
 //! - If the index is out of range, returns an error
 
 use crate::error::{CacheCatError, ProtocolError};
-use crate::mocha::{EntrySnapshot, ExpirePolicy, MochaOperation};
+use crate::mocha::{EntrySnapshot, MochaOperation};
 use crate::protocol::command::{Client, Command};
 use crate::protocol::raft_command::RaftCommand;
 use crate::raft::network::redis_server::RedisServer;

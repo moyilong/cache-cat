@@ -1,4 +1,4 @@
-use crate::raft::types::raft_types::{SnapshotMeta, TypeConfig};
+use crate::raft::types::raft_types::SnapshotMeta;
 use serde::{Deserialize, Serialize};
 use std::error::Error;
 use std::path::{Path, PathBuf};

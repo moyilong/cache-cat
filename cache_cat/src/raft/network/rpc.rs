@@ -21,7 +21,7 @@ use tokio::sync::mpsc;
 use tokio::sync::mpsc::UnboundedSender;
 use tokio::sync::oneshot::Sender;
 use tokio_rustls::TlsAcceptor;
-use tokio_util::codec::{Framed, LengthDelimitedCodec};
+use tokio_util::codec::Framed;
 use tracing::{debug, error, info, warn};
 use uuid::Uuid;
 
@@ -167,7 +167,7 @@ async fn handle_connection(
 
 // 修改pipeline_mode以接受Connection而不是TcpStream
 async fn pipeline_mode(app: Arc<CacheCatApp>, connection: Connection, peer_addr: SocketAddr) {
-    let codec = LengthDelimitedCodec::new();
+    let codec = crate::raft::network::new_length_codec();
     let framed = Framed::new(connection, codec);
     let (mut writer, mut reader) = framed.split();
 
@@ -205,7 +205,7 @@ async fn pipeline_mode(app: Arc<CacheCatApp>, connection: Connection, peer_addr:
 
 // 修改rpc_mode以接受Connection而不是TcpStream
 async fn rpc_mode(app: Arc<CacheCatApp>, connection: Connection, peer_addr: SocketAddr) {
-    let codec = LengthDelimitedCodec::new();
+    let codec = crate::raft::network::new_length_codec();
     let framed = Framed::new(connection, codec);
 
     let (writer, mut reader) = framed.split();

@@ -22,7 +22,7 @@ use tokio::net::TcpStream;
 use tokio::sync::{RwLock, mpsc};
 use tokio::time::timeout;
 use tokio_rustls::TlsConnector;
-use tokio_util::codec::{Framed, LengthDelimitedCodec};
+use tokio_util::codec::Framed;
 
 // --- 槽位管理器配置 ---
 const MAX_PENDING: usize = 65536; // 必须是 2 的幂
@@ -263,7 +263,7 @@ impl RpcClient {
         // 原有协议握手：发送一个全 0 字节
         stream.write_all(&[0u8]).await?;
 
-        let framed = Framed::new(stream, LengthDelimitedCodec::new());
+        let framed = Framed::new(stream, crate::raft::network::new_length_codec());
         let (mut sink, mut stream) = framed.split();
 
         let slot_table = Arc::new(SlotTable::new());
@@ -275,7 +275,8 @@ impl RpcClient {
         // 写任务：任何写失败都说明连接不可用了
         tokio::spawn(async move {
             while let Some(req) = rx_writer.recv().await {
-                if sink.send(Bytes::from(req)).await.is_err() {
+                if let Err(e) = sink.send(Bytes::from(req)).await {
+                    tracing::error!("rpc write failed: {}", e);   // 复现时这里会打出 "frame size too big"
                     break;
                 }
             }

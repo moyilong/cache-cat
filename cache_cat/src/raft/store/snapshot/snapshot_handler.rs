@@ -2,7 +2,7 @@ use crate::raft::store::statemachine::RaftMetaData;
 use crate::raft::store::statemachine::SnapshotState::{End, Tail};
 use crate::raft::types::core::mocha::core::MyCache;
 use crate::raft::types::entry::request::AtomicRequest;
-use crate::raft::types::raft_types::{SnapshotMeta, TypeConfig};
+use crate::raft::types::raft_types::SnapshotMeta;
 use serde::{Deserialize, Serialize};
 use std::io::SeekFrom;
 use std::path::Path;

@@ -23,7 +23,6 @@ use async_trait::async_trait;
 use bytes::Bytes;
 use serde::{Deserialize, Serialize};
 use std::fmt::Display;
-use std::time::{SystemTime, UNIX_EPOCH};
 
 /// PTTL command handler
 #[derive(Debug, Clone, Serialize, Deserialize)]
