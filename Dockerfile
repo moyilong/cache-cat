@@ -17,6 +17,8 @@ FROM scratch
 
 COPY --chmod=0777 --from=build /install-bin/* /cache-cat/
 
+RUN chmod 777 /cache-cat/cache_cat_ping /cache-cat/cache_cat
+
 # Port of Redis
 EXPOSE 6379 
 
