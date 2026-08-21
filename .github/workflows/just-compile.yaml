@@ -26,15 +26,15 @@ jobs:
             os: ubuntu-latest
             build: zig
 
-          # - toolchain: aarch64-apple-darwin
-          #   target: macos-arm64
-          #   os: macos-latest-arm
-          #   build: raw
+          - toolchain: aarch64-apple-darwin
+            target: macos-arm64
+            os: macos-latest-arm
+            build: raw
 
-          # - toolchain: x86_64-pc-windows-msvc
-          #   target: win-x64
-          #   os: windows-latest
-          #   build: raw
+          - toolchain: x86_64-pc-windows-msvc
+            target: win-x64
+            os: windows-latest
+            build: raw
 
           # - toolchain: aarch64-pc-windows-msvc
           #   target: win-arm64
